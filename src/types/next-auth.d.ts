@@ -7,7 +7,7 @@ declare module "next-auth" {
     interface Session {
         user: {
             id: string
-            rol: string
+            rol?: string | null
             nombreArtistico?: string | null
             nombreUsuario?: string | null
             ultimoCambioNombreUsuario?: Date | string | null
@@ -51,7 +51,7 @@ declare module "next-auth" {
 
     interface User {
         id: string
-        rol: string
+        rol?: string | null
         nombreArtistico?: string | null
         nombreUsuario?: string | null
         ultimoCambioNombreUsuario?: Date | string | null

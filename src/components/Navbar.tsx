@@ -19,7 +19,7 @@ import { LogOut, User, Settings, Menu, X, Search, ShieldAlert, Home, Calendar, B
 import { SearchBar } from "@/components/SearchBar";
 
 export default function Navbar() {
-    const { data: session, update } = useSession();
+    const { data: session } = useSession();
     const pathname = usePathname();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -93,7 +93,7 @@ export default function Navbar() {
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-1 ring-white/10 transition-all hover:ring-white/30 hover:bg-white/5 focus:ring-white/30">
                                         <Avatar className="h-9 w-9">
-                                            <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
+                                            <AvatarImage src={session.user?.image || undefined} alt={session.user?.name || ''} />
                                             <AvatarFallback className="bg-zinc-800 text-xs font-medium text-zinc-300">
                                                 {session.user?.name?.[0]?.toUpperCase() || 'U'}
                                             </AvatarFallback>

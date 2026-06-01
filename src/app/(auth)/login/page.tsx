@@ -31,7 +31,8 @@ export default function LoginPage() {
                             <Image
                                 src="/images/placeholders/Feelin_sin_fondo.png"
                                 alt="Feelin Logo"
-                                fill
+                                    fill
+                                    sizes="112px"
                                 className="object-cover p-2"
                                 priority
                             />
@@ -70,14 +71,9 @@ export default function LoginPage() {
                 <CardFooter className="flex flex-col space-y-4 text-center text-xs text-zinc-500 pb-8">
                     <p>
                         Al continuar, aceptas nuestros{" "}
-                        <a href="/terms" className="underline decoration-zinc-700 underline-offset-4 hover:text-white hover:decoration-white transition-colors">
-                            Términos
-                        </a>{" "}
+                        <a href="/terms" className="underline decoration-zinc-700 underline-offset-4 hover:text-white hover:decoration-white transition-colors">Términos</a>{" "}
                         y{" "}
-                        <a href="/privacy" className="underline decoration-zinc-700 underline-offset-4 hover:text-white hover:decoration-white transition-colors">
-                            Privacidad
-                        </a>
-                        .
+                        <a href="/privacy" className="underline decoration-zinc-700 underline-offset-4 hover:text-white hover:decoration-white transition-colors">Privacidad</a>.
                     </p>
                 </CardFooter>
             </Card>

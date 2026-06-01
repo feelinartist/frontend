@@ -201,24 +201,34 @@ export default function PaginaGestionUsuarios() {
             link.download = filename;
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+            link.remove();
         } catch {
             toast.error("Error al descargar la imagen");
-            window.open(url, '_blank');
+            globalThis.open(url, '_blank');
         }
     };
 
-    const handleBanUser = async () => {
-        if (!editingUser) return;
-
-        const result = await MySwal.fire({
-            title: '¿Banear usuario?',
-            text: "El usuario perderá acceso al sistema inmediatamente.",
-            icon: 'warning',
+    const confirmAction = async ({
+        title,
+        text,
+        icon,
+        confirmButtonText,
+        confirmButtonColor,
+    }: {
+        title: string;
+        text: string;
+        icon: 'warning' | 'question' | 'error';
+        confirmButtonText: string;
+        confirmButtonColor: string;
+    }) => {
+        return MySwal.fire({
+            title,
+            text,
+            icon,
             showCancelButton: true,
-            confirmButtonColor: '#ef4444',
+            confirmButtonColor,
             cancelButtonColor: '#27272a',
-            confirmButtonText: 'Sí, banear',
+            confirmButtonText,
             cancelButtonText: 'Cancelar',
             background: '#09090b',
             color: '#ffffff',
@@ -229,6 +239,18 @@ export default function PaginaGestionUsuarios() {
                 const container = Swal.getContainer();
                 if (container) container.style.pointerEvents = 'auto';
             }
+        });
+    };
+
+    const handleBanUser = async () => {
+        if (!editingUser) return;
+
+        const result = await confirmAction({
+            title: '¿Banear usuario?',
+            text: "El usuario perderá acceso al sistema inmediatamente.",
+            icon: 'warning',
+            confirmButtonText: 'Sí, banear',
+            confirmButtonColor: '#ef4444',
         });
 
         if (result.isConfirmed) {
@@ -258,24 +280,12 @@ export default function PaginaGestionUsuarios() {
     const handleUnbanUser = async () => {
         if (!editingUser) return;
 
-        const result = await MySwal.fire({
+        const result = await confirmAction({
             title: '¿Desbanear usuario?',
             text: "El usuario recuperará el acceso al sistema.",
             icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#22c55e',
-            cancelButtonColor: '#27272a',
             confirmButtonText: 'Sí, desbanear',
-            cancelButtonText: 'Cancelar',
-            background: '#09090b',
-            color: '#ffffff',
-            customClass: {
-                container: 'z-[9999]'
-            },
-            didOpen: () => {
-                const container = Swal.getContainer();
-                if (container) container.style.pointerEvents = 'auto';
-            }
+            confirmButtonColor: '#22c55e',
         });
 
         if (result.isConfirmed) {
@@ -305,24 +315,12 @@ export default function PaginaGestionUsuarios() {
     const handleDeletePermanently = async () => {
         if (!editingUser) return;
 
-        const result = await MySwal.fire({
+        const result = await confirmAction({
             title: '¿ELIMINAR PERMANENTEMENTE?',
             text: "Esta acción es irreversible. Se borrarán todos los datos del usuario.",
             icon: 'error',
-            showCancelButton: true,
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#27272a',
             confirmButtonText: 'ELIMINAR AHORA',
-            cancelButtonText: 'Cancelar',
-            background: '#09090b',
-            color: '#ffffff',
-            customClass: {
-                container: 'z-[9999]'
-            },
-            didOpen: () => {
-                const container = Swal.getContainer();
-                if (container) container.style.pointerEvents = 'auto';
-            }
+            confirmButtonColor: '#ef4444',
         });
 
         if (result.isConfirmed) {
@@ -562,7 +560,7 @@ export default function PaginaGestionUsuarios() {
                                     </div>
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-all duration-300 flex items-center justify-center gap-1">
                                         <button
-                                            onClick={() => window.open(editingUser?.imagen || "https://avatar.vercel.sh/user", '_blank')}
+                                            onClick={() => globalThis.open(editingUser?.imagen || "https://avatar.vercel.sh/user", '_blank')}
                                             className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white shadow-lg"
                                             title="Ver original"
                                         >
@@ -595,7 +593,7 @@ export default function PaginaGestionUsuarios() {
                             {/* Unified Controls Row */}
                             <div className="flex flex-col md:flex-row gap-3 items-end md:items-center p-3 bg-zinc-900/30 border border-white/5 rounded-2xl">
                                 <div className="w-full md:flex-1 space-y-1.5">
-                                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Rol</label>
+                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Rol</span>
                                     <Select value={newRole} onValueChange={setNewRole}>
                                         <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white h-9 rounded-xl text-xs">
                                             <SelectValue placeholder="Rol" />
@@ -608,7 +606,7 @@ export default function PaginaGestionUsuarios() {
                                     </Select>
                                 </div>
                                 <div className="w-full md:flex-1 space-y-1.5">
-                                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Estado</label>
+                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Estado</span>
                                     <Select value={newStatus} onValueChange={setNewStatus}>
                                         <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white h-9 rounded-xl text-xs">
                                             <SelectValue placeholder="Estado" />
@@ -622,14 +620,14 @@ export default function PaginaGestionUsuarios() {
                                     </Select>
                                 </div>
                                 <div className="w-full md:flex-[2] space-y-1.5">
-                                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Link de Pago</label>
+                                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest ml-1">Link de Pago</span>
                                     <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 p-1 px-2 rounded-xl h-9">
                                         <p className="text-[10px] text-indigo-400 font-mono truncate flex-1">
                                             {editingUser?.perfilArtista?.urlPago || "Sin enlace"}
                                         </p>
                                         {editingUser?.perfilArtista?.urlPago && (
                                             <button
-                                                onClick={() => window.open(editingUser?.perfilArtista?.urlPago || "", '_blank')}
+                                                onClick={() => editingUser?.perfilArtista?.urlPago && globalThis.open(editingUser.perfilArtista.urlPago, '_blank')}
                                                 className="p-1 hover:bg-white/10 rounded text-zinc-400 transition-colors"
                                             >
                                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -651,7 +649,7 @@ export default function PaginaGestionUsuarios() {
                                         {editingUser.perfilArtista?.musicQR && (
                                             <div className="relative aspect-square rounded-xl overflow-hidden border border-white/10 bg-white p-1.5 group/qr-leg">
                                                 <Image
-                                                    src={editingUser.perfilArtista?.musicQR || ""}
+                                                    src={editingUser.perfilArtista?.musicQR}
                                                     fill
                                                     className="object-contain transition-transform duration-500 group-hover/qr-leg:scale-110"
                                                     alt="Legacy QR"
@@ -659,13 +657,13 @@ export default function PaginaGestionUsuarios() {
                                                 />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/qr-leg:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2">
                                                     <button
-                                                        onClick={() => window.open(editingUser.perfilArtista?.musicQR || "", '_blank')}
+                                                        onClick={() => globalThis.open(editingUser.perfilArtista?.musicQR || undefined, '_blank')}
                                                         className="p-1.5 bg-white/20 hover:bg-white/30 rounded-full text-white shadow-lg"
                                                     >
                                                         <ExternalLink className="h-3.5 w-3.5" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDownload(editingUser.perfilArtista?.musicQR || "", `qr_music_${editingUser.nombreUsuario}.png`)}
+                                                        onClick={() => handleDownload(editingUser.perfilArtista?.musicQR || '', `qr_music_${editingUser.nombreUsuario}.png`)}
                                                         className="p-1.5 bg-indigo-500 hover:bg-indigo-600 rounded-full text-white shadow-lg"
                                                     >
                                                         <Download className="h-3.5 w-3.5" />
@@ -681,7 +679,7 @@ export default function PaginaGestionUsuarios() {
                                         {editingUser.perfilArtista?.pagoQR && editingUser.perfilArtista?.nombreQR && (
                                             <div className="relative aspect-square rounded-xl overflow-hidden border border-indigo-500/30 bg-white p-1.5 group/qr-img">
                                                 <Image
-                                                    src={editingUser.perfilArtista?.pagoQR || ""}
+                                                    src={editingUser.perfilArtista?.pagoQR}
                                                     fill
                                                     className="object-contain transition-transform duration-500 group-hover/qr-img:scale-110"
                                                     alt="Image QR"
@@ -689,13 +687,13 @@ export default function PaginaGestionUsuarios() {
                                                 />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/qr-img:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2">
                                                     <button
-                                                        onClick={() => window.open(editingUser.perfilArtista?.pagoQR || "", '_blank')}
+                                                        onClick={() => globalThis.open(editingUser.perfilArtista?.pagoQR || undefined, '_blank')}
                                                         className="p-1.5 bg-white/20 hover:bg-white/30 rounded-full text-white shadow-lg"
                                                     >
                                                         <ExternalLink className="h-3.5 w-3.5" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDownload(editingUser.perfilArtista?.pagoQR || "", `qr_payment_${editingUser.nombreUsuario}.png`)}
+                                                        onClick={() => handleDownload(editingUser.perfilArtista?.pagoQR || '', `qr_payment_${editingUser.nombreUsuario}.png`)}
                                                         className="p-1.5 bg-indigo-500 hover:bg-indigo-600 rounded-full text-white shadow-lg"
                                                     >
                                                         <Download className="h-3.5 w-3.5" />
@@ -712,15 +710,15 @@ export default function PaginaGestionUsuarios() {
                             )}
 
                             {/* Gallery Section */}
-                            {editingUser?.perfilArtista?.galeria && editingUser.perfilArtista.galeria.length > 0 && (
+                            {(editingUser?.perfilArtista?.galeria?.length ?? 0) > 0 && (
                                 <div className="space-y-3 pt-2">
                                     <div className="flex items-center gap-2 text-[11px] font-bold text-zinc-500 uppercase tracking-widest ml-1 italic">
                                         <ImageIcon className="h-3.5 w-3.5 text-pink-400" />
-                                        Galería Artística ({Math.min(editingUser.perfilArtista.galeria.length, 6)})
+                                        Galería Artística ({Math.min(editingUser?.perfilArtista?.galeria?.length ?? 0, 6)})
                                     </div>
                                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                                        {editingUser?.perfilArtista?.galeria && (editingUser.perfilArtista.galeria).slice(0, 6).map((img, idx: number) => (
-                                            <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-white/5 bg-zinc-900 group/img-box">
+                                        {editingUser?.perfilArtista?.galeria?.slice(0, 6).map((img, idx: number) => (
+                                            <div key={img.urlImagen ?? idx} className="relative aspect-square rounded-xl overflow-hidden border border-white/5 bg-zinc-900 group/img-box">
                                                 <Image
                                                     src={img.urlImagen}
                                                     fill
@@ -730,7 +728,7 @@ export default function PaginaGestionUsuarios() {
                                                 />
                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img-box:opacity-100 transition-all duration-300 flex flex-col items-center justify-center gap-2">
                                                     <button
-                                                        onClick={() => window.open(img.urlImagen, '_blank')}
+                                                        onClick={() => globalThis.open(img.urlImagen, '_blank')}
                                                         className="p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white shadow-lg"
                                                     >
                                                         <ExternalLink className="h-3.5 w-3.5" />
@@ -833,25 +831,6 @@ export default function PaginaGestionUsuarios() {
                         </div>
                     </DialogContent>
                 </Dialog>
-
-                <style jsx global>{`
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 4px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: transparent;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #27272a;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #3f3f46;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:active {
-                    background: #52525b;
-                }
-                `}</style>
             </div>
         </div>
     );

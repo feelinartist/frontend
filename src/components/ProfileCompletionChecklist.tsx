@@ -17,17 +17,17 @@ interface ChecklistItem {
 }
 
 interface ProfileCompletionChecklistProps {
-    perfilArtista: {
-        biografia?: string;
-        categoria?: string;
+    readonly perfilArtista: {
+        readonly biografia?: string;
+        readonly categoria?: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        galeria?: any[];
+        readonly galeria?: any[];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        redesSociales?: any[];
+        readonly redesSociales?: any[];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        metodosDonacion?: any[];
+        readonly metodosDonacion?: any[];
     };
-    onDismiss?: () => void;
+    readonly onDismiss?: () => void;
 }
 
 export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: ProfileCompletionChecklistProps) {
@@ -56,7 +56,7 @@ export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: Profile
             description: "Completa tu biografía y categoría",
             completed: !!(perfilArtista?.biografia && perfilArtista?.categoria),
             icon: <User className="h-5 w-5" />,
-            action: () => window.location.href = '/profile?tab=personal'
+            action: () => globalThis.location.href = '/profile?tab=personal'
         },
         {
             id: "gallery",
@@ -64,7 +64,7 @@ export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: Profile
             description: "Agrega al menos 1 imagen",
             completed: !!(perfilArtista?.galeria && perfilArtista.galeria.length > 0),
             icon: <ImageIcon className="h-5 w-5" />,
-            action: () => window.location.href = '/profile?tab=gallery'
+            action: () => globalThis.location.href = '/profile?tab=gallery'
         },
         {
             id: "social-media",
@@ -72,7 +72,7 @@ export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: Profile
             description: "Conecta al menos 1 red social",
             completed: !!(perfilArtista?.redesSociales && perfilArtista.redesSociales.length > 0),
             icon: <Share2 className="h-5 w-5" />,
-            action: () => window.location.href = '/profile?tab=social'
+            action: () => globalThis.location.href = '/profile?tab=social'
         },
         {
             id: "donation",
@@ -80,7 +80,7 @@ export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: Profile
             description: "Configura al menos 1 método",
             completed: !!(perfilArtista?.metodosDonacion && perfilArtista.metodosDonacion.length > 0),
             icon: <DollarSign className="h-5 w-5" />,
-            action: () => window.location.href = '/profile?tab=donation'
+            action: () => globalThis.location.href = '/profile?tab=donation'
         },
     ], [perfilArtista]);
 
@@ -126,7 +126,7 @@ export function ProfileCompletionChecklist({ perfilArtista, onDismiss }: Profile
             console.log('Profile marked as complete successfully:', result);
 
             // Reload the page to get fresh session data
-            window.location.reload();
+            globalThis.location.reload();
         } catch (error) {
             console.error('Error marking profile as complete:', error);
             onDismiss?.(); // Dismiss anyway on error

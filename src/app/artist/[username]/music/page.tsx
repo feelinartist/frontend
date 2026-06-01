@@ -17,7 +17,7 @@ async function getArtistAndEvent(username: string) {
         if (!resUser.ok) return null;
 
         const user = await resUser.json();
-        if (!user || !user.perfilArtista) return null;
+        if (!user?.perfilArtista) return null;
 
         // 2. Get Active Event
         const resEvent = await fetch(`${baseUrl}/api/eventos/activo/${user.perfilArtista.id}`, {
@@ -39,7 +39,7 @@ async function getArtistAndEvent(username: string) {
     }
 }
 
-export default async function MusicRequestPage(props: { params: Promise<{ username: string }> }) {
+export default async function MusicRequestPage(props: Readonly<{ params: Promise<{ username: string }> }>) {
     const params = await props.params;
     const data = await getArtistAndEvent(params.username);
 
@@ -109,8 +109,7 @@ export default async function MusicRequestPage(props: { params: Promise<{ userna
                         <div className="mb-6 pb-6 border-b border-white/5">
                             <h2 className="text-lg font-semibold text-white mb-1">{event.titulo}</h2>
                             <p className="text-xs text-green-400 font-medium flex items-center justify-center bg-green-500/10 py-1 px-3 rounded-full w-fit mx-auto">
-                                <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                                Recibiendo Pedidos
+                                <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse" />{" "}Recibiendo Pedidos
                             </p>
                         </div>
 

@@ -2,6 +2,18 @@ import { getSession, signOut } from "next-auth/react";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 
+export async function parseJsonSafe<T = unknown>(response: unknown): Promise<T | null> {
+    if (response && typeof (response as { json?: unknown }).json === "function") {
+        try {
+            return await (response as { json: () => Promise<T> }).json();
+        } catch {
+            return null;
+        }
+    }
+
+    return null;
+}
+
 /**
  * Authenticated fetch wrapper that automatically includes the backend JWT
  * from the NextAuth session in the Authorization header.
@@ -23,11 +35,11 @@ export async function fetchApi(
         headers: {
             "Content-Type": "application/json",
             ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-            ...(options.headers || {}),
+            ...(options.headers),
         },
     });
 
-    if ((response.status === 401 || response.status === 403) && typeof window !== "undefined") {
+    if ((response.status === 401 || response.status === 403) && globalThis.window !== undefined) {
         void signOut({ callbackUrl: "/login" });
     }
 

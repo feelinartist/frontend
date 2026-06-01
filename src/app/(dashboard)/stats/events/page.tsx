@@ -60,6 +60,12 @@ export default function EventListPage() {
         }
     }, [session?.user?.id, page, search]);
 
+    const getAcceptanceColor = (rate: number) => {
+        if (rate >= 70) return 'text-green-500';
+        if (rate >= 40) return 'text-yellow-500';
+        return 'text-red-500';
+    };
+
     useEffect(() => {
         if (session?.user) {
             cargarEventos();
@@ -127,7 +133,7 @@ export default function EventListPage() {
                                             </td>
                                             <td className="p-4 text-right text-white">{evento.totalPedidos}</td>
                                             <td className="p-4 text-right">
-                                                <span className={`font-bold ${evento.tasaAceptacion >= 70 ? 'text-green-500' : evento.tasaAceptacion >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
+                                                <span className={`font-bold ${getAcceptanceColor(evento.tasaAceptacion)}`}>
                                                     {evento.tasaAceptacion}%
                                                 </span>
                                             </td>

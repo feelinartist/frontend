@@ -20,6 +20,22 @@ import {
 import { toast } from "sonner";
 import { getCountryByCode } from "@/lib/countries";
 
+function getSocialIcon(name: string, dbIcon: string | undefined) {
+    const iconType = (dbIcon || name).toLowerCase();
+    if (iconType.includes('instagram')) return Camera;
+    if (iconType.includes('twitter') || iconType.includes('x')) return MessageSquare;
+    if (iconType.includes('facebook')) return Users;
+    if (iconType.includes('youtube')) return PlayCircle;
+    if (iconType.includes('whatsapp')) return Phone;
+    return Globe;
+}
+
+function getYoutubeVideoId(url: string | undefined) {
+    if (!url) return null;
+    const match = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(url);
+    return match ? match[2] : null;
+}
+
 
 interface RedSocial {
     nombreUsuario: string;
@@ -80,7 +96,8 @@ export default function PaginaPerfilArtistaPublico() {
 
     const cargarDatosArtista = useCallback(async () => {
         try {
-            const url = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/usuarios/perfil-publico/${username}${session?.user?.id ? `?usuarioSolicitanteId=${session.user.id}` : ''}`;
+            const baseUrl = `${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/usuarios/perfil-publico/${username}`;
+            const url = session?.user?.id ? baseUrl + "?usuarioSolicitanteId=" + session.user.id : baseUrl;
             const res = await fetch(url);
 
             if (res.ok) {
@@ -161,6 +178,99 @@ export default function PaginaPerfilArtistaPublico() {
     // QR Logic: Show ONLY if both image and name exist (Payment QR)
     const showQR = perfil.pagoQR && perfil.nombreQR;
 
+    const handleDownloadMusicQR = async () => {
+        try {
+            const qrElement = document.getElementById('music-request-qr')?.querySelector('svg');
+            if (!qrElement) return;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const svgData = new XMLSerializer().serializeToString(qrElement);
+            const img = new globalThis.Image();
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = globalThis.URL.createObjectURL(svgBlob);
+
+            img.onload = () => {
+                canvas.width = 512;
+                canvas.height = 512;
+                ctx?.drawImage(img, 0, 0, 512, 512);
+                globalThis.URL.revokeObjectURL(url);
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const downloadUrl = globalThis.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = `QR-Pedidos-${perfil.nombreArtistico || artista.nombreUsuario}.png`;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        globalThis.URL.revokeObjectURL(downloadUrl);
+                        toast.success('QR descargado exitosamente');
+                    }
+                });
+            };
+            img.src = url;
+        } catch (error) {
+            console.error('Error descargando QR:', error);
+            toast.error('Error al descargar el QR');
+        }
+    };
+
+    const executeShareOrCopy = async (file: File) => {
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    title: `Pide música a ${perfil.nombreArtistico || artista.nombre}`,
+                    text: `Escanea este código QR para pedir canciones a ${perfil.nombreArtistico || artista.nombre}`,
+                    files: [file]
+                });
+                toast.success('QR compartido exitosamente');
+            } catch (err: unknown) {
+                if (err instanceof Error && err.name !== 'AbortError') {
+                    console.error('Error sharing:', err);
+                    toast.error('Error al compartir');
+                }
+            }
+        } else {
+            const shareUrl = globalThis.window === undefined ? '' : `${globalThis.location.href.split('?')[0]}/music`;
+            await navigator.clipboard.writeText(shareUrl);
+            toast.success('Enlace copiado al portapapeles');
+        }
+    };
+
+    const handleShareMusicQR = async () => {
+        try {
+            const qrElement = document.getElementById('music-request-qr')?.querySelector('svg');
+            if (!qrElement) return;
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const svgData = new XMLSerializer().serializeToString(qrElement);
+            const img = new globalThis.Image();
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+            const url = globalThis.URL.createObjectURL(svgBlob);
+
+            img.onload = async () => {
+                canvas.width = 512;
+                canvas.height = 512;
+                ctx?.drawImage(img, 0, 0, 512, 512);
+                globalThis.URL.revokeObjectURL(url);
+
+                canvas.toBlob(async (blob) => {
+                    if (blob) {
+                        const file = new File([blob], `QR-Pedidos-${perfil.nombreArtistico || artista.nombreUsuario}.png`, { type: 'image/png' });
+                        await executeShareOrCopy(file);
+                    }
+                });
+            };
+            img.src = url;
+        } catch (error) {
+            console.error('Error compartiendo QR:', error);
+            toast.error('Error al compartir el QR');
+        }
+    };
+
     return (
         <div className="relative min-h-[100dvh] bg-black text-white selection:bg-indigo-500/30 px-4 md:px-6 py-4 pt-20 overflow-x-hidden">
             <AnimatedBackground />
@@ -184,7 +294,7 @@ export default function PaginaPerfilArtistaPublico() {
                         <div className="relative">
                             <div className="absolute inset-0 rounded-full blur-2xl bg-indigo-500/20 group-hover:bg-indigo-500/30 transition-colors duration-500" />
                             <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-white/10 shadow-2xl relative">
-                                <AvatarImage src={artista.imagen || ''} alt={artista.nombre} className="object-cover" />
+                                <AvatarImage src={artista.imagen || undefined} alt={artista.nombre} className="object-cover" />
                                 <AvatarFallback className="bg-zinc-900 text-4xl text-zinc-500">
                                     {artista.nombre?.[0]?.toUpperCase()}
                                 </AvatarFallback>
@@ -254,17 +364,13 @@ export default function PaginaPerfilArtistaPublico() {
                                                         src={dbIcon || ""}
                                                         alt={name}
                                                         fill
+                                                        sizes="16px"
                                                         className="object-contain filter brightness-100 contrast-100"
                                                         unoptimized
                                                     />
                                                 </div>
                                             );
-                                            const iconType = (dbIcon || name).toLowerCase();
-                                            const Icon = iconType.includes('instagram') ? Camera :
-                                                (iconType.includes('twitter') || iconType.includes('x')) ? MessageSquare :
-                                                    iconType.includes('facebook') ? Users :
-                                                        iconType.includes('youtube') ? PlayCircle :
-                                                            iconType.includes('whatsapp') ? Phone : Globe;
+                                            const Icon = getSocialIcon(name, dbIcon);
                                             return <Icon className="h-4 w-4" />;
                                         };
 
@@ -314,7 +420,7 @@ export default function PaginaPerfilArtistaPublico() {
                                     <div className="flex flex-wrap gap-1.5">
                                         {Array.isArray(perfil.lugaresConocidos)
                                             ? perfil.lugaresConocidos.map((lugar: string, i: number) => (
-                                                <span key={i} className="px-2.5 py-1 bg-white/5 border border-white/5 rounded-md text-xs text-zinc-300">
+                                                <span key={`${lugar}-${i}`} className="px-2.5 py-1 bg-white/5 border border-white/5 rounded-md text-xs text-zinc-300">
                                                     {lugar}
                                                 </span>
                                             ))
@@ -340,7 +446,8 @@ export default function PaginaPerfilArtistaPublico() {
                                 {/* QR Code Section - Conditional Render */}
                                 {showQR ? (
                                     <div className="space-y-3">
-                                        <div
+                                        <button
+                                            type="button"
                                             onClick={() => setImagenZoom(perfil.pagoQR!)}
                                             className="bg-white p-3 rounded-2xl shadow-lg transform rotate-1 hover:rotate-0 transition-transform duration-300 mx-auto w-fit cursor-pointer group"
                                         >
@@ -349,6 +456,7 @@ export default function PaginaPerfilArtistaPublico() {
                                                     src={perfil.pagoQR!}
                                                     alt={perfil.nombreQR!}
                                                     fill
+                                                    sizes="128px"
                                                     className="object-cover"
                                                     unoptimized
                                                 />
@@ -360,20 +468,20 @@ export default function PaginaPerfilArtistaPublico() {
                                                 <p className="font-bold text-black text-sm">{perfil.nombreQR}</p>
                                                 <p className="text-[10px] text-zinc-500 font-medium tracking-wide uppercase mt-0.5">Escanea para donar</p>
                                             </div>
-                                        </div>
+                                        </button>
                                         <button
                                             onClick={async () => {
                                                 try {
                                                     const response = await fetch(perfil.pagoQR!);
                                                     const blob = await response.blob();
-                                                    const url = window.URL.createObjectURL(blob);
+                                                    const url = globalThis.URL.createObjectURL(blob);
                                                     const a = document.createElement('a');
                                                     a.href = url;
                                                     a.download = `QR-${perfil.nombreQR || 'donacion'}.png`;
                                                     document.body.appendChild(a);
                                                     a.click();
-                                                    document.body.removeChild(a);
-                                                    window.URL.revokeObjectURL(url);
+                                                    a.remove();
+                                                    globalThis.URL.revokeObjectURL(url);
                                                 } catch (error) {
                                                     console.error('Error descargando QR:', error);
                                                 }
@@ -450,7 +558,7 @@ export default function PaginaPerfilArtistaPublico() {
                                         <QRCode
                                             size={256}
                                             style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                                            value={`${typeof window !== 'undefined' ? window.location.href.split('?')[0] : ''}/music`}
+                                            value={`${globalThis.window === undefined ? '' : globalThis.location.href.split('?')[0]}/music`}
                                             viewBox={`0 0 256 256`}
                                         />
                                     </div>
@@ -463,46 +571,7 @@ export default function PaginaPerfilArtistaPublico() {
                                 {/* Download and Share Buttons */}
                                 <div className="flex gap-3 w-full">
                                     <button
-                                        onClick={async () => {
-                                            try {
-                                                const qrElement = document.getElementById('music-request-qr')?.querySelector('svg');
-                                                if (!qrElement) return;
-
-                                                // Convert SVG to Canvas
-                                                const canvas = document.createElement('canvas');
-                                                const ctx = canvas.getContext('2d');
-                                                const svgData = new XMLSerializer().serializeToString(qrElement);
-                                                const img = new window.Image();
-                                                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                                                const url = URL.createObjectURL(svgBlob);
-
-                                                img.onload = () => {
-                                                    canvas.width = 512;
-                                                    canvas.height = 512;
-                                                    ctx?.drawImage(img, 0, 0, 512, 512);
-                                                    URL.revokeObjectURL(url);
-
-                                                    // Download
-                                                    canvas.toBlob((blob) => {
-                                                        if (blob) {
-                                                            const downloadUrl = URL.createObjectURL(blob);
-                                                            const a = document.createElement('a');
-                                                            a.href = downloadUrl;
-                                                            a.download = `QR-Pedidos-${perfil.nombreArtistico || artista.nombreUsuario}.png`;
-                                                            document.body.appendChild(a);
-                                                            a.click();
-                                                            document.body.removeChild(a);
-                                                            URL.revokeObjectURL(downloadUrl);
-                                                            toast.success('QR descargado exitosamente');
-                                                        }
-                                                    });
-                                                };
-                                                img.src = url;
-                                            } catch (error) {
-                                                console.error('Error descargando QR:', error);
-                                                toast.error('Error al descargar el QR');
-                                            }
-                                        }}
+                                        onClick={handleDownloadMusicQR}
                                         className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                                     >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -512,58 +581,7 @@ export default function PaginaPerfilArtistaPublico() {
                                     </button>
 
                                     <button
-                                        onClick={async () => {
-                                            try {
-                                                const qrElement = document.getElementById('music-request-qr')?.querySelector('svg');
-                                                if (!qrElement) return;
-
-                                                // Convert SVG to Canvas for sharing
-                                                const canvas = document.createElement('canvas');
-                                                const ctx = canvas.getContext('2d');
-                                                const svgData = new XMLSerializer().serializeToString(qrElement);
-                                                const img = new window.Image();
-                                                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-                                                const url = URL.createObjectURL(svgBlob);
-
-                                                img.onload = async () => {
-                                                    canvas.width = 512;
-                                                    canvas.height = 512;
-                                                    ctx?.drawImage(img, 0, 0, 512, 512);
-                                                    URL.revokeObjectURL(url);
-
-                                                    canvas.toBlob(async (blob) => {
-                                                        if (blob) {
-                                                            const file = new File([blob], `QR-Pedidos-${perfil.nombreArtistico || artista.nombreUsuario}.png`, { type: 'image/png' });
-
-                                                            if (navigator.share && navigator.canShare({ files: [file] })) {
-                                                                try {
-                                                                    await navigator.share({
-                                                                        title: `Pide música a ${perfil.nombreArtistico || artista.nombre}`,
-                                                                        text: `Escanea este código QR para pedir canciones a ${perfil.nombreArtistico || artista.nombre}`,
-                                                                        files: [file]
-                                                                    });
-                                                                    toast.success('QR compartido exitosamente');
-                                                                } catch (err: unknown) {
-                                                                    if (err instanceof Error && err.name !== 'AbortError') {
-                                                                        console.error('Error sharing:', err);
-                                                                        toast.error('Error al compartir');
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                // Fallback: copy link to clipboard
-                                                                const shareUrl = typeof window !== 'undefined' ? `${window.location.href.split('?')[0]}/music` : '';
-                                                                await navigator.clipboard.writeText(shareUrl);
-                                                                toast.success('Enlace copiado al portapapeles');
-                                                            }
-                                                        }
-                                                    });
-                                                };
-                                                img.src = url;
-                                            } catch (error) {
-                                                console.error('Error compartiendo QR:', error);
-                                                toast.error('Error al compartir el QR');
-                                            }
-                                        }}
+                                        onClick={handleShareMusicQR}
                                         className="flex-1 py-2.5 px-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
                                     >
                                         <Share2 className="w-4 h-4" />
@@ -581,8 +599,7 @@ export default function PaginaPerfilArtistaPublico() {
                             const hasYouTube = perfil.redesSociales?.some((r: RedSocial) => {
                                 const name = r.redSocial?.nombre?.toLowerCase() || "";
                                 if (!name.includes('youtube')) return false;
-                                const videoId = r.nombreUsuario?.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]
-                                    || (r.nombreUsuario?.length === 11 ? r.nombreUsuario : null);
+                                const videoId = getYoutubeVideoId(r.nombreUsuario) || (r.nombreUsuario?.length === 11 ? r.nombreUsuario : null);
                                 return !!videoId;
                             });
                             const hasSoundCloud = perfil.redesSociales?.some((r: RedSocial) => {
@@ -594,13 +611,12 @@ export default function PaginaPerfilArtistaPublico() {
                             return hasMultimedia ? (
                                 <div className="space-y-4">
                                     <h2 className="text-lg font-bold flex items-center gap-2">
-                                        <span className="w-1.5 h-6 bg-pink-500 rounded-full" />
-                                        Multimedia
+                                        <span className="w-1.5 h-6 bg-pink-500 rounded-full" /> Multimedia
                                     </h2>
                                     <div className="grid grid-cols-1 gap-6">
                                         {/* YouTube Favorito */}
                                         {hasYouTubeFavorito && perfil.urlYoutubeFavorito && (() => {
-                                            const videoId = perfil.urlYoutubeFavorito.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2];
+                                            const videoId = getYoutubeVideoId(perfil.urlYoutubeFavorito);
                                             if (videoId) {
                                                 return (
                                                     <div key="yt-fav" className="space-y-2">
@@ -638,9 +654,9 @@ export default function PaginaPerfilArtistaPublico() {
                                                     <iframe
                                                         width="100%"
                                                         height="166"
-                                                        scrolling="no"
-                                                        frameBorder="no"
+                                                        style={{ border: 0, overflow: 'hidden' }}
                                                         allow="autoplay"
+                                                        title="SoundCloud favorite track"
                                                         src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(perfil.urlSoundCloudFavorito || '')}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
                                                     ></iframe>
                                                 </div>
@@ -648,18 +664,18 @@ export default function PaginaPerfilArtistaPublico() {
                                         )}
 
                                         {/* Redes Sociales Multimedia */}
-                                        {perfil.redesSociales?.map((red, i) => {
+                                        {perfil.redesSociales?.map((red) => {
                                             const name = red.redSocial?.nombre?.toLowerCase() || "";
                                             const url = red.redSocial?.urlBase + red.nombreUsuario;
 
                                             // YouTube Embed
                                             if (name.includes('youtube')) {
-                                                const videoId = red.nombreUsuario.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2]
+                                                const videoId = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/.exec(red.nombreUsuario)?.[2]
                                                     || (red.nombreUsuario.length === 11 ? red.nombreUsuario : null);
 
                                                 if (videoId) {
                                                     return (
-                                                        <div key={i} className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl aspect-video relative group">
+                                                        <div key={`${name}-${red.nombreUsuario}`} className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl aspect-video relative group">
                                                             <iframe
                                                                 src={`https://www.youtube.com/embed/${videoId}`}
                                                                 title="YouTube video player"
@@ -676,13 +692,13 @@ export default function PaginaPerfilArtistaPublico() {
                                             if (name.includes('soundcloud')) {
                                                 const scUrl = url.startsWith('http') ? url : `https://${url}`;
                                                 return (
-                                                    <div key={i} className="rounded-xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl">
+                                                    <div key={url} className="rounded-xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl">
                                                         <iframe
                                                             width="100%"
                                                             height="166"
-                                                            scrolling="no"
-                                                            frameBorder="no"
+                                                            style={{ border: 0, overflow: 'hidden' }}
                                                             allow="autoplay"
+                                                            title="SoundCloud track player"
                                                             src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(scUrl)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
                                                         ></iframe>
                                                     </div>
@@ -699,8 +715,7 @@ export default function PaginaPerfilArtistaPublico() {
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-lg font-bold flex items-center gap-2">
-                                    <span className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                                    Galería
+                                    <span className="w-1.5 h-6 bg-indigo-500 rounded-full" /> Galería
                                 </h2>
                                 <span className="text-xs text-zinc-500 font-medium">
                                     {perfil.galeria?.length || 0} fotos
@@ -710,10 +725,12 @@ export default function PaginaPerfilArtistaPublico() {
                             {perfil.galeria && perfil.galeria.length > 0 ? (
                                 <div className="columns-1 md:columns-3 gap-4 space-y-4">
                                     {perfil.galeria.map((img: { id: string; url?: string; urlImagen?: string }) => (
-                                        <div
+                                        <button
                                             key={img.id}
+                                            type="button"
                                             onClick={() => setImagenZoom(img.urlImagen || img.url || "")}
                                             className="relative break-inside-avoid rounded-2xl overflow-hidden group cursor-pointer border border-white/5 bg-zinc-900"
+                                            aria-label="Ver imagen en galería"
                                         >
                                             <div className="relative w-full h-auto">
                                                 <Image
@@ -731,7 +748,7 @@ export default function PaginaPerfilArtistaPublico() {
                                                     <p className="text-white font-medium text-xs">Ver imagen completa</p>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </button>
                                     ))}
                                 </div>
                             ) : (
@@ -751,10 +768,13 @@ export default function PaginaPerfilArtistaPublico() {
 
             {/* Image Zoom Modal */}
             {imagenZoom && (
-                <div
-                    onClick={() => setImagenZoom(null)}
-                    className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300"
-                >
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+                    <button
+                        type="button"
+                        onClick={() => setImagenZoom(null)}
+                        className="absolute inset-0 w-full h-full bg-black/95 backdrop-blur-md cursor-default border-none outline-none"
+                        aria-label="Cerrar modal"
+                    />
                     <button
                         onClick={() => setImagenZoom(null)}
                         className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all z-[60] group border border-white/5 active:scale-95 shadow-2xl"
@@ -764,7 +784,6 @@ export default function PaginaPerfilArtistaPublico() {
                     </button>
 
                     <div
-                        onClick={(e) => e.stopPropagation()}
                         className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500"
                     >
                         <div className="relative max-w-full max-h-full aspect-auto">

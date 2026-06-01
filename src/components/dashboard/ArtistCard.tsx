@@ -8,27 +8,25 @@ import Link from "next/link";
 import { countries } from "@/lib/countries";
 
 interface ArtistCardProps {
-    artista: {
-        id: string;
-        nombre: string;
-        nombreUsuario: string;
-        imagen?: string | null;
-        perfilArtista?: {
-            nombreArtistico?: string | null;
-            categoria?: string | null;
-            pais?: string | null;
-            ciudad?: string | null;
-            fechaInicio?: string | Date | null;
-            lugaresConocidos?: string[];
-            codigoTelefono?: string | null;
-            numeroTelefono?: string | null;
-            tarifaPorHora?: number | null;
-            moneda?: string | null;
+    readonly artista: {
+        readonly id: string;
+        readonly nombre: string;
+        readonly nombreUsuario: string;
+        readonly imagen?: string | null;
+        readonly perfilArtista?: {
+            readonly nombreArtistico?: string | null;
+            readonly categoria?: string | null;
+            readonly pais?: string | null;
+            readonly ciudad?: string | null;
+            readonly fechaInicio?: string | Date | null;
+            readonly lugaresConocidos?: string[];
+            readonly codigoTelefono?: string | null;
+            readonly numeroTelefono?: string | null;
+            readonly tarifaPorHora?: number | null;
+            readonly moneda?: string | null;
         } | null;
-        siguiendo?: boolean;
+        readonly siguiendo?: boolean;
     };
-    onFollowUpdate?: () => void;
-    onBlockUpdate?: () => void;
 }
 
 export function ArtistCard({ artista }: ArtistCardProps) {
@@ -82,6 +80,10 @@ export function ArtistCard({ artista }: ArtistCardProps) {
     const rate = artista.perfilArtista?.tarifaPorHora;
     const currency = artista.perfilArtista?.moneda || 'PEN';
     const origin = [cityName, countryName].filter(Boolean).join(", ");
+    const placesTitle = Array.isArray(artista.perfilArtista?.lugaresConocidos) 
+        ? artista.perfilArtista.lugaresConocidos.join(", ") 
+        : '';
+    const initials = artista.nombre?.[0]?.toUpperCase() || 'A';
 
     return (
         <Card className="group border-white/10 bg-black/40 backdrop-blur-xl hover:bg-white/5 transition-all overflow-hidden h-full flex flex-col">
@@ -91,9 +93,9 @@ export function ArtistCard({ artista }: ArtistCardProps) {
                 <div className="flex items-start gap-3">
                     <div className="relative shrink-0">
                         <Avatar className="h-14 w-14 border-2 border-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">
-                            <AvatarImage src={artista.imagen || ''} alt={artista.nombre} />
+                            <AvatarImage src={artista.imagen || undefined} alt={artista.nombre} />
                             <AvatarFallback className="bg-zinc-800 text-sm text-zinc-400">
-                                {artista.nombre?.[0]?.toUpperCase() || 'A'}
+                                {initials}
                             </AvatarFallback>
                         </Avatar>
                     </div>
@@ -144,7 +146,7 @@ export function ArtistCard({ artista }: ArtistCardProps) {
                                 <span className="text-zinc-500 flex items-center gap-1">
                                     <Building2 className="h-3 w-3" /> Ha tocado en
                                 </span>
-                                <span className="text-zinc-200 truncate" title={Array.isArray(artista.perfilArtista?.lugaresConocidos) ? artista.perfilArtista?.lugaresConocidos.join(", ") : ''}>
+                                <span className="text-zinc-200 truncate" title={placesTitle}>
                                     {places}
                                 </span>
                             </div>

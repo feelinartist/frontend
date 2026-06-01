@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { fetchApi } from "@/lib/api";
 
 interface UsernameInputProps {
-    value: string;
-    onChange: (value: string) => void;
-    onStatusChange: (isValid: boolean) => void;
-    currentUsername?: string; // To allow keeping the same username if editing
-    className?: string;
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+    readonly onStatusChange: (isValid: boolean) => void;
+    readonly currentUsername?: string; // To allow keeping the same username if editing
+    readonly className?: string;
 }
 
 export function UsernameInput({
@@ -23,7 +23,7 @@ export function UsernameInput({
     const [verifying, setVerifying] = useState(false);
     const [error, setError] = useState("");
     const [suggestions, setSuggestions] = useState<string[]>([]);
-    const [isvalid, setIsValid] = useState(false);
+    const [isValid, setIsValid] = useState(false);
 
     // Debounce verification or check on blur? 
     // Profile implementation used onBlur. Let's stick to that or a long debounce.
@@ -32,7 +32,7 @@ export function UsernameInput({
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         // 1. Clean input (lowercase, no spaces/special chars)
         const rawValue = e.target.value;
-        const cleanedValue = rawValue.toLowerCase().replace(/[^a-z0-9._]/g, "");
+        const cleanedValue = rawValue.toLowerCase().replaceAll(/[^a-z0-9._]/g, "");
 
         onChange(cleanedValue);
 
@@ -47,7 +47,7 @@ export function UsernameInput({
         if (!value) return;
 
         // If it's the same as current, it's valid (unless empty, but that's handled above)
-        if (currentUsername && value === currentUsername.toLowerCase()) {
+        if (value === currentUsername?.toLowerCase()) {
             setIsValid(false);
             setError("");
             onStatusChange(true);
@@ -76,16 +76,16 @@ export function UsernameInput({
             }
 
             const data = await response.json();
-            if (!data.disponible) {
-                setError("No disponible");
-                setSuggestions(Array.isArray(data.sugerencias) ? data.sugerencias : []);
-                setIsValid(false);
-                onStatusChange(false);
-            } else {
+            if (data.disponible) {
                 setError("");
                 setSuggestions([]);
                 setIsValid(true);
                 onStatusChange(true);
+            } else {
+                setError("No disponible");
+                setSuggestions(Array.isArray(data.sugerencias) ? data.sugerencias : []);
+                setIsValid(false);
+                onStatusChange(false);
             }
         } catch (err) {
             console.error(err);
@@ -95,6 +95,13 @@ export function UsernameInput({
         } finally {
             setVerifying(false);
         }
+    };
+
+    const renderStatusIcon = () => {
+        if (verifying) return <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />;
+        if (isValid) return <CheckCircle className="h-5 w-5 text-green-500" />;
+        if (error) return <XCircle className="h-5 w-5 text-red-500" />;
+        return null;
     };
 
     return (
@@ -112,19 +119,13 @@ export function UsernameInput({
                     className={cn(
                         "bg-zinc-900/50 border-zinc-800 text-white focus:border-indigo-500 transition-colors pl-8 pr-10",
                         error && "border-red-500 focus:border-red-500",
-                        isvalid && "border-green-500 focus:border-green-500"
+                        isValid && "border-green-500 focus:border-green-500"
                     )}
                     placeholder="usuario"
                     autoComplete="off"
                 />
                 <div className="absolute right-3 top-2.5">
-                    {verifying ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
-                    ) : isvalid ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : error ? (
-                        <XCircle className="h-5 w-5 text-red-500" />
-                    ) : null}
+                    {renderStatusIcon()}
                 </div>
             </div>
 

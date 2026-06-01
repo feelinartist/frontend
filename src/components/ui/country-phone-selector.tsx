@@ -8,9 +8,9 @@ import {
 import { countries, getCountryByPhoneCode } from "@/lib/countries";
 
 interface CountryPhoneSelectorProps {
-    value: string;  // Phone code like "+51"
-    onValueChange: (phoneCode: string) => void;
-    className?: string;
+    readonly value: string;  // Phone code like "+51"
+    readonly onValueChange: (phoneCode: string) => void;
+    readonly className?: string;
 }
 
 export function CountryPhoneSelector({ value, onValueChange, className }: CountryPhoneSelectorProps) {

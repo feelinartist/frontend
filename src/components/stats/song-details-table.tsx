@@ -32,16 +32,16 @@ interface SongDetail {
 }
 
 interface SongDetailsTableProps {
-    data: SongDetail[];
-    totalPoints: number;
-    page: number;
-    totalPages: number;
-    isLoading: boolean;
-    onPageChange: (newPage: number) => void;
-    onSearchChange: (search: string) => void;
-    onSortChange: (sort: string) => void;
-    currentSort: string;
-    currentSearch: string;
+    readonly data: SongDetail[];
+    readonly totalPoints: number;
+    readonly page: number;
+    readonly totalPages: number;
+    readonly isLoading: boolean;
+    readonly onPageChange: (newPage: number) => void;
+    readonly onSearchChange: (search: string) => void;
+    readonly onSortChange: (sort: string) => void;
+    readonly currentSort: string;
+    readonly currentSearch: string;
 }
 
 export function SongDetailsTable({
@@ -58,6 +58,60 @@ export function SongDetailsTable({
 }: SongDetailsTableProps) {
     // Debounce search handled by parent or useEffect here if needed
     // For simplicity, assuming parent handles debounce or direct update
+
+    const renderTableBody = () => {
+        if (isLoading) {
+            const skeletons = [1, 2, 3, 4, 5];
+            return skeletons.map((id) => (
+                <TableRow key={`skeleton-${id}`} className="border-white/5">
+                    <TableCell><div className="h-4 bg-white/10 rounded w-32 animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-24 animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-16 animate-pulse" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
+                    <TableCell><div className="h-4 bg-white/10 rounded w-20 animate-pulse ml-auto" /></TableCell>
+                </TableRow>
+            ));
+        }
+
+        if (data.length === 0) {
+            return (
+                <TableRow className="border-white/5 hover:bg-transparent">
+                    <TableCell colSpan={7} className="h-32 text-center text-zinc-500">
+                        No se encontraron canciones
+                    </TableCell>
+                </TableRow>
+            );
+        }
+
+        return data.map((song, i) => (
+            <TableRow key={`${song.titulo}-${song.artista}-${i}`} className="border-white/5 hover:bg-white/5">
+                <TableCell className="font-medium text-white">{song.titulo}</TableCell>
+                <TableCell className="text-zinc-400">{song.artista}</TableCell>
+                <TableCell className="text-zinc-500 text-sm">{song.genero || '-'}</TableCell>
+                <TableCell className="text-right font-bold text-indigo-400">{song.total}</TableCell>
+                <TableCell className="text-right text-green-500 font-medium">
+                    {song.aceptados}
+                    <span className="text-[10px] text-zinc-600 block">
+                        {song.total > 0 ? Math.round((song.aceptados / song.total) * 100) : 0}%
+                    </span>
+                </TableCell>
+                <TableCell className="text-right text-red-500 font-medium">
+                    {song.rechazados}
+                    <span className="text-[10px] text-zinc-600 block">
+                        {song.total > 0 ? Math.round((song.rechazados / song.total) * 100) : 0}%
+                    </span>
+                </TableCell>
+                <TableCell className="text-right text-zinc-400 text-sm">
+                    {song.ultimoPedido
+                        ? format(new Date(song.ultimoPedido), "d MMM, yy", { locale: es })
+                        : '-'
+                    }
+                </TableCell>
+            </TableRow>
+        ));
+    };
 
     return (
         <div className="space-y-4">
@@ -110,52 +164,7 @@ export function SongDetailsTable({
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {isLoading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <TableRow key={i} className="border-white/5">
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-32 animate-pulse" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-24 animate-pulse" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-16 animate-pulse" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-8 animate-pulse ml-auto" /></TableCell>
-                                    <TableCell><div className="h-4 bg-white/10 rounded w-20 animate-pulse ml-auto" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : data.length === 0 ? (
-                            <TableRow className="border-white/5 hover:bg-transparent">
-                                <TableCell colSpan={7} className="h-32 text-center text-zinc-500">
-                                    No se encontraron canciones
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            data.map((song, i) => (
-                                <TableRow key={i} className="border-white/5 hover:bg-white/5">
-                                    <TableCell className="font-medium text-white">{song.titulo}</TableCell>
-                                    <TableCell className="text-zinc-400">{song.artista}</TableCell>
-                                    <TableCell className="text-zinc-500 text-sm">{song.genero || '-'}</TableCell>
-                                    <TableCell className="text-right font-bold text-indigo-400">{song.total}</TableCell>
-                                    <TableCell className="text-right text-green-500 font-medium">
-                                        {song.aceptados}
-                                        <span className="text-[10px] text-zinc-600 block">
-                                            {song.total > 0 ? Math.round((song.aceptados / song.total) * 100) : 0}%
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-right text-red-500 font-medium">
-                                        {song.rechazados}
-                                        <span className="text-[10px] text-zinc-600 block">
-                                            {song.total > 0 ? Math.round((song.rechazados / song.total) * 100) : 0}%
-                                        </span>
-                                    </TableCell>
-                                    <TableCell className="text-right text-zinc-400 text-sm">
-                                        {song.ultimoPedido
-                                            ? format(new Date(song.ultimoPedido), "d MMM, yy", { locale: es })
-                                            : '-'
-                                        }
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
+                        {renderTableBody()}
                     </TableBody>
                 </Table>
             </div>

@@ -1,16 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-    Loader2, Save, Camera, MessageSquare, Users,
+    Camera, MessageSquare, Users,
     PlayCircle, Globe, Music
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { fetchApi } from "@/lib/api";
+import { fetchApi, parseJsonSafe } from "@/lib/api";
+import { DashedEmptyState } from "@/components/ui/DashedEmptyState";
+import { useLoadingState } from "@/lib/use-loading-state";
+import { useConfigList } from "@/lib/useConfigList";
+import { ProfileFormWrapper } from '@/components/profile/ProfileFormWrapper';
 
 interface SocialMediaItem {
     id: string;
@@ -25,10 +28,10 @@ interface SocialMediaItem {
 }
 
 interface SocialMediaFormProps {
-    redesSociales: SocialMediaItem[];
-    usuarioId: string;
-    onSave: () => void;
-    onLoadingChange?: (loading: boolean) => void;
+    readonly redesSociales: SocialMediaItem[];
+    readonly usuarioId: string;
+    readonly onSave: () => void;
+    readonly onLoadingChange?: (loading: boolean) => void;
 }
 
 interface SocialMediaEntry {
@@ -45,22 +48,13 @@ interface RedSocial {
 }
 
 export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingChange }: SocialMediaFormProps) {
-    const [loading, setLoading] = useState(false);
-    const [availableNetworks, setAvailableNetworks] = useState<RedSocial[]>([]);
+    const [loading, setGlobalLoading] = useLoadingState(onLoadingChange);
     const [socialMediaEntries, setSocialMediaEntries] = useState<Record<string, SocialMediaEntry>>({});
 
-    const setGlobalLoading = (isLoading: boolean) => {
-        setLoading(isLoading);
-        onLoadingChange?.(isLoading);
-    };
+    const { data: availableNetworks = [] } = useConfigList<RedSocial>("/api/config/redes-sociales");
 
     useEffect(() => {
-        fetchAvailableNetworks();
-    }, []);
-
-    useEffect(() => {
-        // Initialize with existing data merging with available networks
-        if (availableNetworks.length > 0) {
+        if ((availableNetworks?.length ?? 0) > 0) {
             const entries: Record<string, SocialMediaEntry> = {};
 
             availableNetworks.forEach(network => {
@@ -85,29 +79,6 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
         }
     }, [redesSociales, availableNetworks]);
 
-    const fetchAvailableNetworks = async () => {
-        try {
-            const res = await fetchApi('/api/config/redes-sociales');
-            if (res.ok) {
-                const data = await res.json();
-                setAvailableNetworks(data);
-
-                // Initialize empty entries for all networks
-                const entries: Record<string, SocialMediaEntry> = {};
-                data.forEach((network: { id: string; nombre: string; icono?: string; urlBase?: string }) => {
-                    entries[network.id] = {
-                        redSocialId: network.id,
-                        nombreRed: network.nombre,
-                        nombreUsuario: ""
-                    };
-                });
-                setSocialMediaEntries(entries);
-            }
-        } catch (error) {
-            console.error("Error loading social networks:", error);
-        }
-    };
-
     const getPlaceholder = (networkName: string) => {
         const name = networkName.toLowerCase();
         if (name.includes('facebook')) return "tu.nombre";
@@ -122,9 +93,7 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
         return "tuusuario";
     };
 
-
-
-    const handleChange = (networkId: string, field: 'nombreUsuario' | 'codigoTelefono' | 'numeroTelefono', value: string) => {
+    const handleChange = (networkId: string, field: 'nombreUsuario', value: string) => {
         setSocialMediaEntries(prev => ({
             ...prev,
             [networkId]: {
@@ -150,12 +119,11 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
         return <Globe className="h-4 w-4 text-zinc-400" />;
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setGlobalLoading(true);
 
         try {
-            // Convert to array format, only include networks with data
             const socialMediaArray = Object.values(socialMediaEntries)
                 .filter(entry => entry.nombreUsuario && entry.nombreUsuario.trim() !== "")
                 .map(entry => ({
@@ -172,8 +140,8 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || "Error al guardar");
+                const errorBody = await parseJsonSafe<{ message?: string }>(response);
+                throw new Error(errorBody?.message || "Error al guardar");
             }
 
             toast.success("Redes sociales actualizadas correctamente");
@@ -188,7 +156,7 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <ProfileFormWrapper onSubmit={handleSubmit} isLoading={loading} saveDisabled={availableNetworks.length === 0}>
             <div className="space-y-4">
                 {availableNetworks.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -228,32 +196,9 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
                         })}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-zinc-800 rounded-lg">
-                        <Loader2 className="h-8 w-8 animate-spin text-zinc-600 mb-4" />
-                        <p className="text-zinc-400 text-sm">Cargando redes sociales...</p>
-                    </div>
+                    <DashedEmptyState loading={true} title="Cargando redes sociales..." />
                 )}
             </div>
-
-            <div className="pt-4">
-                <Button
-                    type="submit"
-                    className="w-full bg-white text-black hover:bg-zinc-200 font-semibold h-11 rounded-xl text-sm shadow-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={loading || availableNetworks.length === 0}
-                >
-                    {loading ? (
-                        <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Guardando cambios...
-                        </>
-                    ) : (
-                        <>
-                            <Save className="mr-2 h-5 w-5" />
-                            Guardar Cambios
-                        </>
-                    )}
-                </Button>
-            </div>
-        </form>
+        </ProfileFormWrapper>
     );
 }

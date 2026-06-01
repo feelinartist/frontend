@@ -21,7 +21,7 @@ interface Evento {
 }
 
 interface EventManagerProps {
-    onEventChange?: (event: Evento | null) => void;
+    readonly onEventChange?: (event: Evento | null) => void;
 }
 
 export function EventManager({ onEventChange }: EventManagerProps) {
@@ -84,7 +84,8 @@ export function EventManager({ onEventChange }: EventManagerProps) {
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
+        // NOSONAR - Justification: Geolocation access is explicitly triggered by direct user interaction ("Obtener mi ubicación" button) to set event coordinates.
+        navigator.geolocation.getCurrentPosition( // NOSONAR
             (position) => {
                 setLocation({
                     lat: position.coords.latitude,
@@ -177,19 +178,19 @@ export function EventManager({ onEventChange }: EventManagerProps) {
                 })
             });
 
-            if (!res.ok) {
-                toast.error("Error al actualizar estado de pedidos");
-            } else {
+            if (res.ok) {
                 const updatedProfile = await res.json();
 
                 // Authoritative update from server response
                 setPedidosActivos(updatedProfile.pedidosActivos);
 
-                if (updatedProfile.pedidosActivos !== checked) {
-                    toast.warning("El servidor devolvió un estado inesperado.");
-                } else {
+                if (updatedProfile.pedidosActivos === checked) {
                     toast.success(checked ? "Pedidos activados" : "Pedidos desactivados");
+                } else {
+                    toast.warning("El servidor devolvió un estado inesperado.");
                 }
+            } else {
+                toast.error("Error al actualizar estado de pedidos");
             }
         } catch {
             toast.error("Error de conexión");
@@ -197,6 +198,12 @@ export function EventManager({ onEventChange }: EventManagerProps) {
     };
 
     if (loading) return null;
+
+    const getWarningMessage = () => {
+        if (!title && !location) return "Completa el título y la ubicación";
+        if (!title) return "Ingresa un título";
+        return "La ubicación es obligatoria";
+    };
 
     return (
         <Card className="border-white/10 bg-black/40 backdrop-blur-xl">
@@ -234,7 +241,7 @@ export function EventManager({ onEventChange }: EventManagerProps) {
                                 <div className="flex items-center gap-2 mt-2 text-xs text-indigo-300/50">
                                     <Clock className="h-3 w-3" />
                                     <span>
-                                        Iniciado {new Date(activeEvent.horaInicio as string | Date).toLocaleString("es-ES", {
+                                        Iniciado {new Date(activeEvent.horaInicio).toLocaleString("es-ES", {
                                             day: '2-digit',
                                             month: '2-digit',
                                             year: 'numeric',
@@ -316,7 +323,7 @@ export function EventManager({ onEventChange }: EventManagerProps) {
                             {(!title || !location) && (
                                 <p className="text-xs text-amber-400/80 text-center flex items-center justify-center gap-1">
                                     <span>⚠️</span>
-                                    {!title && !location ? "Completa el título y la ubicación" : !title ? "Ingresa un título" : "La ubicación es obligatoria"}
+                                    {getWarningMessage()}
                                 </p>
                             )}
                         </div>

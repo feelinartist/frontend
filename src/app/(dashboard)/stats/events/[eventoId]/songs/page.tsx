@@ -9,24 +9,24 @@ import { SongDetailsTable } from "@/components/stats/song-details-table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
+import { useDebounce } from "@/lib/useDebounce";
+
+interface SongStats {
+    titulo: string;
+    artista: string;
+    genero: string;
+    total: number;
+    aceptados: number;
+    rechazados: number;
+    ultimoPedido: string;
+    [key: string]: unknown;
+}
 
 export default function EventSongsPage() {
     const { data: session } = useSession();
     const params = useParams();
     const eventoId = params?.eventoId as string;
 
-    // State
-    interface SongStats {
-        titulo: string;
-        artista: string;
-        genero: string;
-        total: number;
-        aceptados: number;
-        rechazados: number;
-        ultimoPedido: string;
-        // Extra properties allowed
-        [key: string]: unknown;
-    }
     const [isLoading, setIsLoading] = useState(true);
     const [data, setData] = useState<SongStats[]>([]);
     const [total, setTotal] = useState(0);
@@ -126,17 +126,4 @@ export default function EventSongsPage() {
             </div>
         </div>
     );
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = useState<T>(value);
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [value, delay]);
-    return debouncedValue;
 }

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AnimatedBackground } from "@/components/animated-background";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 
-const roles = [
+export const roles = [
     {
         id: "ARTISTA",
         title: "Soy Artista",
@@ -58,7 +58,7 @@ export default function ContenidoSeleccionRol() {
             });
 
             if (response.ok) {
-                window.location.replace('/home');
+                globalThis.location.replace('/home');
             } else {
                 console.error('Error al actualizar rol');
             }

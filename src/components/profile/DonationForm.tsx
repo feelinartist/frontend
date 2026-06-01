@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Plus, Trash2, Upload, X, Save } from "lucide-react";
+import { Plus, Trash2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { fetchApi } from "@/lib/api";
+import { fetchApi, parseJsonSafe } from "@/lib/api";
+import { convertFileToBase64, DEFAULT_MAX_FILE_SIZE } from "@/lib/useFileToBase64";
+import { DashedEmptyState } from "@/components/ui/DashedEmptyState";
+import { useLoadingState } from "@/lib/use-loading-state";
+import { useConfigList } from "@/lib/useConfigList";
+import { ProfileFormWrapper } from '@/components/profile/ProfileFormWrapper';
 import {
     Select,
     SelectContent,
@@ -37,11 +42,11 @@ interface PerfilArtista {
 }
 
 interface DonationFormProps {
-    metodosDonacion: PerfilArtistaDonacion[];
-    perfilArtista: PerfilArtista;
-    usuarioId: string;
-    onSave: () => void;
-    onLoadingChange?: (loading: boolean) => void;
+    readonly metodosDonacion: PerfilArtistaDonacion[];
+    readonly perfilArtista: PerfilArtista;
+    readonly usuarioId: string;
+    readonly onSave: () => void;
+    readonly onLoadingChange?: (loading: boolean) => void;
 }
 
 interface DonationMethod {
@@ -51,8 +56,8 @@ interface DonationMethod {
 }
 
 export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave, onLoadingChange }: DonationFormProps) {
-    const [loading, setLoading] = useState(false);
-    const [availableMethods, setAvailableMethods] = useState<MetodoDonacion[]>([]);
+    const [loading, setGlobalLoading] = useLoadingState(onLoadingChange);
+    const { data: availableMethods = [] } = useConfigList<MetodoDonacion>('/api/config/metodos-donacion');
     const [donations, setDonations] = useState<DonationMethod[]>(
         metodosDonacion?.map(md => ({
             id: crypto.randomUUID(),
@@ -67,33 +72,12 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
     const [nombreQRGlobal, setNombreQRGlobal] = useState(perfilArtista?.nombreQR || "");
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const MAX_QR_SIZE = 2 * 1024 * 1024; // 2MB in bytes
-
-    const setGlobalLoading = (isLoading: boolean) => {
-        setLoading(isLoading);
-        onLoadingChange?.(isLoading);
-    };
-
-    useEffect(() => {
-        fetchAvailableMethods();
-    }, []);
-
-    const fetchAvailableMethods = async () => {
-        try {
-            const res = await fetchApi('/api/config/metodos-donacion');
-            if (res.ok) {
-                const data = await res.json();
-                setAvailableMethods(data);
-            }
-        } catch (error) {
-            console.error("Error loading donation methods:", error);
-        }
-    };
+    
 
     const handleAdd = () => {
         // Find first method that hasn't been selected yet
-        const selectedIds = donations.map(d => d.metodoDonacionId);
-        const firstAvailable = availableMethods.find(m => !selectedIds.includes(m.id));
+        const selectedIds = new Set(donations.map(d => d.metodoDonacionId));
+        const firstAvailable = availableMethods.find(m => !selectedIds.has(m.id));
 
         // Only add if there's an available method
         if (!firstAvailable) {
@@ -118,14 +102,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
         setDonations(updated);
     };
 
-    const convertToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
+    const MAX_QR_SIZE = DEFAULT_MAX_FILE_SIZE;
 
     const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -142,7 +119,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
             toast.loading("Procesando QR...");
 
             // Convert to base64 for preview only
-            const base64 = await convertToBase64(file);
+            const base64 = await convertFileToBase64(file);
             setPagoQRGlobal(base64);
 
             toast.dismiss();
@@ -164,7 +141,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
 
 
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setGlobalLoading(true);
 
@@ -193,7 +170,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
             let finalQRUrl = pagoQRGlobal;
 
             // Upload QR if it's a new base64 image
-            if (pagoQRGlobal && pagoQRGlobal.startsWith('data:')) {
+            if (pagoQRGlobal?.startsWith('data:')) {
                 const loadingToast = toast.loading("Subiendo QR...");
 
                 const response = await fetchApi('/api/imagenes/qr-pago', {
@@ -208,8 +185,8 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
                     throw new Error('Error al subir el QR');
                 }
 
-                const data = await response.json();
-                finalQRUrl = data.url;
+                const data = await parseJsonSafe<{ url?: string }>(response) ?? {};
+                finalQRUrl = data.url || finalQRUrl;
                 toast.dismiss(loadingToast);
             } else if (pagoQRGlobal) {
                 // It's already a URL
@@ -231,8 +208,8 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || "Error al guardar");
+                const errorBody = await parseJsonSafe<{ message?: string }>(response);
+                throw new Error(errorBody?.message || "Error al guardar");
             }
 
             toast.success("Métodos de donación actualizados correctamente");
@@ -247,7 +224,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
     };
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <ProfileFormWrapper onSubmit={handleSubmit} isLoading={loading}>
             <div className="space-y-6">
                 {/* Payment Methods Section */}
                 <div className="space-y-4">
@@ -317,6 +294,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
                                             type="button"
                                             variant="ghost"
                                             size="icon"
+                                            aria-label="Eliminar método"
                                             onClick={() => handleRemove(index)}
                                             className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
                                         >
@@ -327,10 +305,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
                             })}
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-zinc-800 rounded-lg">
-                            <p className="text-zinc-400 text-sm">No has agregado métodos de donación</p>
-                            <p className="text-zinc-500 text-xs mt-1">Haz click en &quot;Agregar Método&quot; para comenzar</p>
-                        </div>
+                        <DashedEmptyState title="No has agregado métodos de donación" subtitle={"Haz click en \"Agregar Método\" para comenzar"} />
                     )}
                 </div>
 
@@ -381,6 +356,7 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
                                     />
                                     <button
                                         type="button"
+                                        aria-label="Eliminar QR"
                                         onClick={handleRemoveQR}
                                         className="absolute top-1 right-1 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
@@ -412,26 +388,6 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
                     </div>
                 </div>
             </div>
-
-            <div className="pt-4">
-                <Button
-                    type="submit"
-                    className="w-full bg-white text-black hover:bg-zinc-200 font-semibold h-11 rounded-xl text-sm shadow-lg transition-all transform active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Guardando cambios...
-                        </>
-                    ) : (
-                        <>
-                            <Save className="mr-2 h-5 w-5" />
-                            Guardar Cambios
-                        </>
-                    )}
-                </Button>
-            </div>
-        </form>
+        </ProfileFormWrapper>
     );
 }

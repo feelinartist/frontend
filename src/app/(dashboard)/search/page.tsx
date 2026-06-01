@@ -58,30 +58,24 @@ function SearchContent() {
         }
     }, [termino, session?.user?.id, buscarArtistas]);
 
-    return (
-        <div className="relative z-10 max-w-5xl mx-auto">
-            <div className="flex items-center gap-4 mb-8">
-                <BackButton href="/home" />
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Resultados de búsqueda</h1>
-                    <p className="text-zinc-400 text-sm">
-                        {termino ? `Resultados para "${termino}"` : "Ingresa un término para buscar"}
-                    </p>
-                </div>
-            </div>
-
-            {cargando ? (
+    const renderContent = () => {
+        if (cargando) {
+            return (
                 <div className="flex justify-center p-12">
                     <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
                 </div>
-            ) : resultados.length > 0 ? (
+            );
+        }
+        
+        if (resultados.length > 0) {
+            return (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {resultados.map((artista) => (
                         <Link key={artista.id} href={`/artist/${artista.perfilArtista?.nombreArtistico || artista.nombreUsuario}`}>
                             <Card className="border-white/10 bg-black/40 backdrop-blur-xl hover:bg-white/5 transition-all cursor-pointer h-full">
                                 <CardContent className="p-6 flex flex-col items-center text-center gap-4">
                                     <Avatar className="h-24 w-24 border-2 border-indigo-500/20">
-                                        <AvatarImage src={artista.imagen || ''} alt={artista.nombre || ''} />
+                                        <AvatarImage src={artista.imagen || undefined} alt={artista.nombre || ''} />
                                         <AvatarFallback className="bg-zinc-800 text-2xl text-zinc-400">
                                             {artista.nombre?.[0]?.toUpperCase() || 'A'}
                                         </AvatarFallback>
@@ -108,19 +102,37 @@ function SearchContent() {
                         </Link>
                     ))}
                 </div>
-            ) : (
-                <div className="text-center py-12 space-y-4">
-                    <p className="text-zinc-500">No se encontraron artistas.</p>
-                    <Button
-                        onClick={() => router.push('/home')}
-                        variant="outline"
-                        className="bg-zinc-900/50 border-zinc-800 text-white hover:bg-zinc-800"
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Volver al inicio
-                    </Button>
+            );
+        }
+
+        return (
+            <div className="text-center py-12 space-y-4">
+                <p className="text-zinc-500">No se encontraron artistas.</p>
+                <Button
+                    onClick={() => router.push('/home')}
+                    variant="outline"
+                    className="bg-zinc-900/50 border-zinc-800 text-white hover:bg-zinc-800"
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver al inicio
+                </Button>
+            </div>
+        );
+    };
+
+    return (
+        <div className="relative z-10 max-w-5xl mx-auto">
+            <div className="flex items-center gap-4 mb-8">
+                <BackButton href="/home" />
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Resultados de búsqueda</h1>
+                    <p className="text-zinc-400 text-sm">
+                        {termino ? `Resultados para "${termino}"` : "Ingresa un término para buscar"}
+                    </p>
                 </div>
-            )}
+            </div>
+
+            {renderContent()}
         </div>
     );
 }

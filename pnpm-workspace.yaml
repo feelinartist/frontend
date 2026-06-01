@@ -1,3 +1,4 @@
 allowBuilds:
   sharp: true
+  sonar-scanner: true
   unrs-resolver: true

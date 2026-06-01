@@ -98,8 +98,12 @@ export default function PaginaConfiguracionAdmin() {
                 fetch(`${BACKEND_URL}/api/config/metodos-donacion`)
             ]);
 
-            if (resRedes.ok) setRedes(await resRedes.json());
-            if (resMetodos.ok) setMetodos(await resMetodos.json());
+            if (resRedes.ok && resMetodos.ok) {
+                setRedes(await resRedes.json());
+                setMetodos(await resMetodos.json());
+            } else {
+                toast.error("Error al cargar los datos de configuración");
+            }
         } catch (error) {
             console.error("Error cargando configuración:", error);
             toast.error("Error al cargar los datos de configuración");
@@ -240,13 +244,17 @@ export default function PaginaConfiguracionAdmin() {
         return <Globe className="h-5 w-5" />;
     };
 
-    if (status === "loading" || cargando) {
+    if (status === "loading") {
         return <LoadingScreen />;
     }
 
     if (!session || (session.user?.rol !== 'SUPER_ADMIN' && session.user?.rol !== 'ADMIN')) {
         router.push("/home");
         return null;
+    }
+
+    if (cargando) {
+        return <LoadingScreen />;
     }
 
     return (

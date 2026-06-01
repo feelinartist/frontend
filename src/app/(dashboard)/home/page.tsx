@@ -37,7 +37,7 @@ export default function PaginaPanelControl() {
     const router = useRouter();
     const [perfilArtista, setPerfilArtista] = useState<ArtistProfile | null>(null);
     const [checklistDismissed, setChecklistDismissed] = useState(() => {
-        if (typeof window !== "undefined") {
+        if (globalThis.window !== undefined) {
             return localStorage.getItem('checklist-dismissed') === 'true';
         }
         return false;
@@ -55,10 +55,7 @@ export default function PaginaPanelControl() {
         localStorage.setItem('checklist-dismissed', 'false');
     };
 
-    const esAdmin = session?.user?.rol === "SUPER_ADMIN" || session?.user?.rol === "ADMIN";
-
     const sessionUserId = session?.user?.id;
-    const sessionUserRol = session?.user?.rol;
 
     const cargarPerfilArtista = useCallback(async (mounted: boolean) => {
         if (!sessionUserId) return;
@@ -171,7 +168,7 @@ export default function PaginaPanelControl() {
         return <LoadingScreen />;
     }
 
-    if (status === "unauthenticated" || !session || !session.user?.rol) {
+    if (status === "unauthenticated" || !session?.user?.rol) {
         return <LoadingScreen />;
     }
 

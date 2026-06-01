@@ -6,12 +6,13 @@ import { Loader2, Upload, X, Image as ImageIcon, Save } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { fetchApi } from "@/lib/api";
+import { convertFileToBase64 } from '@/lib/useFileToBase64';
 
 interface GalleryFormProps {
-    galeria: { urlImagen: string }[];
-    usuarioId: string;
-    onSave: () => void;
-    onLoadingChange?: (loading: boolean) => void;
+    readonly galeria: { readonly urlImagen: string }[];
+    readonly usuarioId: string;
+    readonly onSave: () => void;
+    readonly onLoadingChange?: (loading: boolean) => void;
 }
 
 export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: GalleryFormProps) {
@@ -28,14 +29,7 @@ export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: Gal
         onLoadingChange?.(isLoading);
     };
 
-    const convertToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
+    // using shared convertFileToBase64
 
     const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -86,7 +80,7 @@ export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: Gal
 
                 // Convert to base64 for preview only
                 const base64Images = await Promise.all(
-                    validFiles.map(file => convertToBase64(file))
+                    validFiles.map(file => convertFileToBase64(file))
                 );
 
                 const newNames = validFiles.map(f => f.name);
@@ -114,7 +108,7 @@ export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: Gal
         toast.success("Imagen eliminada");
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setGlobalLoading(true);
 
@@ -182,16 +176,16 @@ export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: Gal
                                 <Upload className="h-4 w-4" />
                                 <span>Subir Imagen</span>
                             </div>
-                            <input
-                                id="image-upload"
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={handleImageUpload}
-                            />
                         </label>
                     )}
+                    <input
+                        id="image-upload"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageUpload}
+                    />
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
@@ -215,6 +209,7 @@ export function GalleryForm({ galeria, usuarioId, onSave, onLoadingChange }: Gal
                                 />
                                 <button
                                     type="button"
+                                    aria-label={`Eliminar Imagen ${index + 1}`}
                                     onClick={() => handleRemoveImage(index)}
                                     className="absolute top-2 right-2 p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                 >

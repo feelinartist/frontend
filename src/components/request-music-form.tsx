@@ -37,9 +37,9 @@ interface Track {
 }
 
 interface RequestMusicFormProps {
-    eventoId: string;
-    artistName: string;
-    artistProfile?: ArtistProfile;
+    readonly eventoId: string;
+    readonly artistName: string;
+    readonly artistProfile?: ArtistProfile;
 }
 
 
@@ -132,7 +132,7 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
         setQuery("");
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         if (!selectedTrack || !yourName) {
@@ -216,17 +216,17 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                                                 try {
                                                     const response = await fetch(qrImage);
                                                     const blob = await response.blob();
-                                                    const url = window.URL.createObjectURL(blob);
+                                                    const url = globalThis.URL.createObjectURL(blob);
                                                     const link = document.createElement('a');
                                                     link.href = url;
                                                     link.download = `qr-${artistProfile?.nombreQR || 'donacion'}.png`;
                                                     document.body.appendChild(link);
                                                     link.click();
-                                                    document.body.removeChild(link);
-                                                    window.URL.revokeObjectURL(url);
+                                                    link.remove();
+                                                    globalThis.URL.revokeObjectURL(url);
                                                 } catch (error) {
                                                     console.error("Download failed:", error);
-                                                    window.open(qrImage, '_blank');
+                                                    globalThis.open(qrImage, '_blank');
                                                 }
                                             }}
                                             className="flex items-center gap-1.5 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-full transition-colors text-[10px] text-zinc-300 hover:text-white cursor-pointer border border-white/5"
@@ -253,8 +253,8 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                             {/* Other Donation Methods */}
                             {hasDonationMethods && (
                                 <div className="space-y-1.5 pt-2 border-t border-white/10">
-                                    {artistProfile.metodosDonacion?.map((d, i) => (
-                                        <div key={i} className="flex items-center justify-between text-[10px] text-zinc-400 bg-zinc-800/50 p-1.5 rounded-lg">
+                                    {artistProfile.metodosDonacion?.map((d) => (
+                                        <div key={d.numeroCuenta} className="flex items-center justify-between text-[10px] text-zinc-400 bg-zinc-800/50 p-1.5 rounded-lg">
                                             <div>
                                                 <span className="text-indigo-400 font-bold">{d.metodoDonacion.nombre}:</span> {d.numeroCuenta}
                                             </div>
@@ -291,9 +291,9 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                                 <div className={`space-y-1.5 ${hasDonationOptions ? 'pt-2 border-t border-white/10' : ''}`}>
                                     {hasDonationOptions && <p className="text-[10px] font-bold text-zinc-400">Sígueme en redes:</p>}
                                     <div className="flex flex-wrap gap-1.5 justify-center">
-                                        {artistProfile.redesSociales?.map((social, i) => (
+                                        {artistProfile.redesSociales?.map((social) => (
                                             <a
-                                                key={i}
+                                                key={`${social.redSocial.nombre}-${social.nombreUsuario}`}
                                                 href={`${social.redSocial.urlBase}${social.nombreUsuario}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
@@ -328,53 +328,11 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
 
             {/* Search Section */}
             <div className="space-y-2 relative z-20">
-                <Label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+                <Label htmlFor="track-search" className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
                     <Music className="h-3 w-3" /> Buscar Canción o Artista <span className="text-red-500">*</span>
                 </Label>
 
-                {!selectedTrack ? (
-                    <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
-                        <Input
-                            placeholder="Busca por título o artista..."
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            className="pl-10 bg-black/20 border-white/10 text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:ring-indigo-500/20"
-                        />
-                        {isSearching && (
-                            <div className="absolute right-3 top-3">
-                                <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
-                            </div>
-                        )}
-
-                        {/* Dropdown Results */}
-                        {results.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl max-h-60 overflow-y-auto z-50 animate-in fade-in slide-in-from-top-2">
-                                {results.map((track) => (
-                                    <div
-                                        key={track.id}
-                                        onClick={() => handleSelectTrack(track)}
-                                        className="p-3 hover:bg-white/5 cursor-pointer flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
-                                    >
-                                        <Image
-                                            src={track.album.images[0]?.url}
-                                            alt={track.name}
-                                            width={40}
-                                            height={40}
-                                            className="w-10 h-10 rounded bg-zinc-800 object-cover"
-                                            unoptimized
-                                        />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-white truncate">{track.name}</p>
-                                            <p className="text-xs text-zinc-400 truncate">{track.artists[0].name}</p>
-                                            {track.genre && <span className="text-[10px] text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 mt-1 inline-block">{track.genre}</span>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ) : (
+                {selectedTrack ? (
                     <div className="flex items-center gap-3 p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl relative group">
                         <Image
                             src={selectedTrack.album.images[0]?.url}
@@ -400,6 +358,51 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                         >
                             <X className="h-4 w-4" />
                         </Button>
+                    </div>
+                ) : (
+                    <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                        <Input
+                            id="track-search"
+                            placeholder="Busca por título o artista..."
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            className="pl-10 bg-black/20 border-white/10 text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:ring-indigo-500/20"
+                        />
+                        {isSearching && (
+                            <div className="absolute right-3 top-3">
+                                <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
+                            </div>
+                        )}
+
+                        {/* Dropdown Results */}
+                        {results.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl max-h-60 overflow-y-auto z-50 animate-in fade-in slide-in-from-top-2">
+                                {results.map((track) => (
+                                    <button
+                                        key={track.id}
+                                        type="button"
+                                        onClick={() => handleSelectTrack(track)}
+                                        className="w-full text-left p-3 hover:bg-white/5 cursor-pointer flex items-center gap-3 transition-colors border-b border-white/5 last:border-0"
+                                        aria-label={`Seleccionar ${track.name} de ${track.artists[0].name}`}
+                                    >
+                                        <Image
+                                            src={track.album.images[0]?.url}
+                                            alt={track.name}
+                                            width={40}
+                                            height={40}
+                                            className="w-10 h-10 rounded bg-zinc-800 object-cover"
+                                            unoptimized
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-white truncate">{track.name}</p>
+                                            <p className="text-xs text-zinc-400 truncate">{track.artists[0].name}</p>
+                                            {track.genre && <span className="text-[10px] text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 mt-1 inline-block">{track.genre}</span>}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

@@ -67,6 +67,52 @@ export function ArtistDiscovery() {
         buscarArtistas();
     }, [buscarArtistas]);
 
+    const renderContent = () => {
+        if (cargando) {
+            return (
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
+                    <p className="text-zinc-400 animate-pulse">Buscando talentos...</p>
+                </div>
+            );
+        }
+        
+        if (artistas.length > 0) {
+            return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {artistas.map((artista) => (
+                        <ArtistCard
+                            key={artista.id}
+                            artista={artista}
+                        />
+                    ))}
+                </div>
+            );
+        }
+
+        return (
+            <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-white/10">
+                <div className="bg-zinc-900/50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="h-8 w-8 text-zinc-600" />
+                </div>
+                <h3 className="text-white font-medium mb-1">No se encontraron artistas</h3>
+                <p className="text-zinc-500 text-sm max-w-xs mx-auto mb-6">
+                    Intenta ajustar tus filtros de búsqueda o país para encontrar lo que buscas.
+                </p>
+                {(termino || paisId !== "all") && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(globalThis.location.pathname)}
+                        className="border-white/10 text-zinc-400 hover:text-white"
+                    >
+                        Limpiar filtros
+                    </Button>
+                )}
+            </div>
+        );
+    };
+
     return (
         <div className="space-y-8">
             {/* Filter UI removed - now in Header */}
@@ -80,43 +126,7 @@ export function ArtistDiscovery() {
                     <span className="text-sm text-zinc-500">{artistas.length} artistas encontrados</span>
                 </div>
 
-                {cargando ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-4">
-                        <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
-                        <p className="text-zinc-400 animate-pulse">Buscando talentos...</p>
-                    </div>
-                ) : artistas.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {artistas.map((artista) => (
-                            <ArtistCard
-                                key={artista.id}
-                                artista={artista}
-                                onFollowUpdate={buscarArtistas}
-                                onBlockUpdate={buscarArtistas}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-20 bg-zinc-900/20 rounded-3xl border border-dashed border-white/10">
-                        <div className="bg-zinc-900/50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Search className="h-8 w-8 text-zinc-600" />
-                        </div>
-                        <h3 className="text-white font-medium mb-1">No se encontraron artistas</h3>
-                        <p className="text-zinc-500 text-sm max-w-xs mx-auto mb-6">
-                            Intenta ajustar tus filtros de búsqueda o país para encontrar lo que buscas.
-                        </p>
-                        {(termino || paisId !== "all") && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => router.push(window.location.pathname)}
-                                className="border-white/10 text-zinc-400 hover:text-white"
-                            >
-                                Limpiar filtros
-                            </Button>
-                        )}
-                    </div>
-                )}
+                {renderContent()}
             </div>
         </div>
     );

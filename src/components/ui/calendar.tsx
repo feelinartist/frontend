@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type CalendarProps = {
-    mode?: "single"
-    selected?: Date
-    onSelect?: (date: Date | undefined) => void
-    className?: string
-    initialFocus?: boolean
-    disabled?: (date: Date) => boolean
+    readonly mode?: "single"
+    readonly selected?: Date
+    readonly onSelect?: (date: Date | undefined) => void
+    readonly className?: string
+    readonly initialFocus?: boolean
+    readonly disabled?: (date: Date) => boolean
 }
 
 const DAYS = ["D", "L", "M", "M", "J", "V", "S"] // Domingo, Lunes, Martes, Miércoles, Jueves, Viernes, Sábado
@@ -53,16 +53,16 @@ function Calendar({
     const firstDayOfMonth = new Date(year, month, 1).getDay() // 0 = Sunday
 
     // Generate calendar days
-    const days: (number | null)[] = []
+    const calendarDays: { id: string, value: number | null }[] = []
 
     // Add empty cells for days before month starts
     for (let i = 0; i < firstDayOfMonth; i++) {
-        days.push(null)
+        calendarDays.push({ id: `empty-${i}`, value: null })
     }
 
     // Add days of the month
     for (let i = 1; i <= daysInMonth; i++) {
-        days.push(i)
+        calendarDays.push({ id: `day-${year}-${month}-${i}`, value: i })
     }
 
     const handlePrevMonth = () => {
@@ -74,11 +74,11 @@ function Calendar({
     }
 
     const handleMonthChange = (value: string) => {
-        setCurrentMonth(new Date(year, parseInt(value), 1))
+        setCurrentMonth(new Date(year, Number.parseInt(value), 1))
     }
 
     const handleYearChange = (value: string) => {
-        setCurrentMonth(new Date(parseInt(value), month, 1))
+        setCurrentMonth(new Date(Number.parseInt(value), month, 1))
     }
 
     const handleDayClick = (day: number) => {
@@ -131,7 +131,7 @@ function Calendar({
                         </SelectTrigger>
                         <SelectContent className="bg-zinc-900 border-zinc-800 text-white max-h-[300px]">
                             {MONTHS.map((monthName, index) => (
-                                <SelectItem key={index} value={index.toString()}>
+                                <SelectItem key={monthName} value={index.toString()}>
                                     {monthName}
                                 </SelectItem>
                             ))}
@@ -169,7 +169,7 @@ function Calendar({
                 <div className="grid grid-cols-7 mb-2">
                     {DAYS.map((day, index) => (
                         <div
-                            key={index}
+                            key={`day-header-${index}-${day}`}
                             className="h-9 flex items-center justify-center text-xs font-medium text-zinc-500"
                         >
                             {day}
@@ -179,10 +179,11 @@ function Calendar({
 
                 {/* Days grid */}
                 <div className="grid grid-cols-7 gap-1">
-                    {days.map((day, index) => {
+                    {calendarDays.map((dayObj) => {
+                        const day = dayObj.value
                         const disabled = day ? isDisabled(day) : false
                         return (
-                            <div key={index} className="h-9 flex items-center justify-center">
+                            <div key={dayObj.id} className="h-9 flex items-center justify-center">
                                 {day ? (
                                     <button
                                         type="button"

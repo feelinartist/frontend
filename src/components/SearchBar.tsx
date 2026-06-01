@@ -12,17 +12,17 @@ export function SearchBar() {
     const [query, setQuery] = useState("");
     const [country, setCountry] = useState("");
 
-    const handleSearch = (e?: React.FormEvent, selectedCountry?: string) => {
+    const handleSearch = (e?: React.SyntheticEvent<HTMLFormElement>, selectedCountry?: string) => {
         if (e) e.preventDefault();
 
         const params = new URLSearchParams();
         if (query.trim()) params.set("termino", query);
 
-        const effectiveCountry = selectedCountry !== undefined ? selectedCountry : country;
+        const effectiveCountry = selectedCountry ?? country;
         if (effectiveCountry && effectiveCountry !== "all") params.set("pais", effectiveCountry);
 
         // Determine target path
-        const currentPath = window.location.pathname;
+        const currentPath = globalThis.location.pathname;
         const isSearchPage = currentPath === '/search' || currentPath === '/home';
         const targetPath = isSearchPage ? currentPath : '/home';
 

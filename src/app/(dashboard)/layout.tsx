@@ -6,13 +6,13 @@ import Navbar from "@/components/Navbar";
 export default async function DashboardLayout({
     children,
 }: {
-    children: React.ReactNode;
+    readonly children: React.ReactNode;
 }) {
     const authOptions = getAuthOptions();
     const session = await getServerSession(authOptions);
     console.log("[DashboardLayout] getServerSession result:", session);
 
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
         redirect("/login");
     }
 

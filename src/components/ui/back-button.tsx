@@ -5,8 +5,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface BackButtonProps {
-    href: string;
-    className?: string;
+    readonly href: string;
+    readonly className?: string;
 }
 
 export function BackButton({ href, className }: BackButtonProps) {

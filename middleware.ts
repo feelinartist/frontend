@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Roles that don't require profile registration — they go straight to Home
-const ADMIN_ROLES = ["SUPER_ADMIN", "ADMIN"];
-
 export async function middleware(req: NextRequest) {
     const token = await getToken({ req });
     const isAuth = !!token;
@@ -31,19 +29,15 @@ export async function middleware(req: NextRequest) {
             if (isRolePage || isRegistrationPage) {
                 return NextResponse.redirect(new URL("/home", req.url));
             }
-        } else {
+        } else if (isDashboardPage) {
             // User has NO role
             // SUPER_ADMIN/ADMIN are pre-seeded with a role, so this path
             // is only for regular users who haven't picked a role yet.
-            if (isDashboardPage) {
-                return NextResponse.redirect(new URL("/role-selection", req.url));
-            }
+            return NextResponse.redirect(new URL("/role-selection", req.url));
         }
-    } else {
+    } else if (isRolePage || isRegistrationPage || isDashboardPage) {
         // Not authenticated — redirect to login for protected pages
-        if (isRolePage || isRegistrationPage || isDashboardPage) {
-            return NextResponse.redirect(new URL("/login", req.url));
-        }
+        return NextResponse.redirect(new URL("/login", req.url));
     }
 
     return NextResponse.next();

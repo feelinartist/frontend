@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, Music2, Loader2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { io } from "socket.io-client";
-import { fetchApi } from "@/lib/api";
+import { fetchApi, parseJsonSafe } from "@/lib/api";
 
 interface Request {
     id: string;
@@ -30,7 +30,7 @@ interface GroupedRequest {
     itunesId?: string;
 }
 
-export function LiveRequestsFeed({ eventoId }: { eventoId: string }) {
+export function LiveRequestsFeed({ eventoId }: { readonly eventoId: string }) {
     const [requests, setRequests] = useState<Request[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -38,8 +38,8 @@ export function LiveRequestsFeed({ eventoId }: { eventoId: string }) {
         try {
             const res = await fetchApi(`/api/eventos/${eventoId}/pedidos`);
             if (res.ok) {
-                const data = await res.json();
-                setRequests(data);
+                const data = await parseJsonSafe(res);
+                setRequests(Array.isArray(data) ? data : []);
             }
         } catch (error) {
             console.error("Error fetching requests:", error);
@@ -47,6 +47,14 @@ export function LiveRequestsFeed({ eventoId }: { eventoId: string }) {
             setLoading(false);
         }
     }, [eventoId]);
+
+    const handleNuevoPedido = useCallback((pedido: Request) => {
+        setRequests(prev => {
+            if (prev.some(p => p.id === pedido.id)) return prev;
+            return [pedido, ...prev];
+        });
+        toast.info(`¡Nuevo pedido: ${pedido.titulo}!`);
+    }, []);
 
     useEffect(() => {
         fetchRequests();
@@ -57,18 +65,12 @@ export function LiveRequestsFeed({ eventoId }: { eventoId: string }) {
             socket.emit('join_event', eventoId);
         });
 
-        socket.on('nuevo_pedido', (pedido: Request) => {
-            setRequests(prev => {
-                if (prev.find(p => p.id === pedido.id)) return prev;
-                return [pedido, ...prev];
-            });
-            toast.info(`¡Nuevo pedido: ${pedido.titulo}!`);
-        });
+        socket.on('nuevo_pedido', handleNuevoPedido);
 
         return () => {
             socket.disconnect();
         };
-    }, [eventoId, fetchRequests]);
+    }, [eventoId, fetchRequests, handleNuevoPedido]);
 
     // Grouping Logic
     const groupedPendingRequests = useMemo(() => {
@@ -126,8 +128,8 @@ export function LiveRequestsFeed({ eventoId }: { eventoId: string }) {
         if (errorCount > 0) {
             toast.warning(`Algunos pedidos no se pudieron actualizar (${errorCount} errores)`);
             fetchRequests(); // Sync with backend
-        } else {
-            if (estado === "ACEPTADO") toast.success("Canción aceptada");
+        } else if (estado === "ACEPTADO") {
+            toast.success("Canción aceptada");
         }
     };
 

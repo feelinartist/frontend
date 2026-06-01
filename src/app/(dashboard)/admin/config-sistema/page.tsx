@@ -123,7 +123,7 @@ export default function ConfigSistemaPage() {
 
 
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         setSaving(true);
 
@@ -245,18 +245,16 @@ export default function ConfigSistemaPage() {
 
                                 <div className="space-y-4 py-4">
                                     {!editingConfig && (
-                                        <>
-                                            <div className="space-y-2">
-                                                <Label>Clave</Label>
-                                                <Input
-                                                    value={formData.clave}
-                                                    onChange={(e) => setFormData({ ...formData, clave: e.target.value })}
-                                                    placeholder="CLIENT_ID"
-                                                    className="bg-zinc-800 border-zinc-700 text-white"
-                                                    required
-                                                />
-                                            </div>
-                                        </>
+                                        <div className="space-y-2">
+                                            <Label>Clave</Label>
+                                            <Input
+                                                value={formData.clave}
+                                                onChange={(e) => setFormData({ ...formData, clave: e.target.value })}
+                                                placeholder="CLIENT_ID"
+                                                className="bg-zinc-800 border-zinc-700 text-white"
+                                                required
+                                            />
+                                        </div>
                                     )}
 
                                     <div className="space-y-2">
@@ -301,7 +299,15 @@ export default function ConfigSistemaPage() {
                                 </div>
 
                                 <DialogFooter>
-                                    <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)} className="text-zinc-400">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => {
+                                            resetForm();
+                                            setDialogOpen(false);
+                                        }}
+                                        className="text-zinc-400"
+                                    >
                                         Cancelar
                                     </Button>
                                     <Button type="submit" disabled={saving} className="bg-white text-black hover:bg-zinc-200">

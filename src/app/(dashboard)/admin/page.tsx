@@ -87,9 +87,9 @@ export default function PaginaAdmin() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {adminSections.map((section, idx) => (
+                    {adminSections.map((section) => (
                         <Card
-                            key={idx}
+                            key={section.title}
                             className={`border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden group transition-all duration-300 ${section.disabled ? 'opacity-60 grayscale cursor-not-allowed' : 'hover:border-white/20 hover:bg-white/5'}`}
                         >
                             <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${section.color} blur-3xl -mr-16 -mt-16 group-hover:opacity-100 opacity-50 transition-opacity`} />

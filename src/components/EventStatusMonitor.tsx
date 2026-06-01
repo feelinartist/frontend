@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
-
-import { useRef } from "react";
 
 interface EventStatusMonitorProps {
     eventoId?: string;
@@ -42,7 +40,7 @@ export function EventStatusMonitor({ eventoId, artistId, currentStatus }: EventS
 
             console.log("Socket: Action required. Reloading page in 1.5s...");
             reloadTimeout = setTimeout(() => {
-                window.location.reload();
+                globalThis.location.reload();
             }, 1500);
         };
 
