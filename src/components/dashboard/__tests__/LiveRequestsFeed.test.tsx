@@ -285,4 +285,60 @@ describe("LiveRequestsFeed Component", () => {
         });
         consoleSpy.mockRestore();
     });
+
+    it("handles alternative grouping keys (no itunesId/artista/solicitante)", async () => {
+        const altRequests = [
+            {
+                id: "alt-1",
+                titulo: "Song Unknown",
+                estado: "PENDIENTE",
+                creadoEn: "2026-05-27T10:00:00.000Z",
+                // no itunesId, no artista, no nombreSolicitante
+            }
+        ];
+        (fetchApi as any).mockImplementation(async (path: string) => {
+            if (path.includes("/pedidos")) {
+                return { ok: true, json: async () => altRequests };
+            }
+            return { ok: true };
+        });
+
+        render(<LiveRequestsFeed eventoId="event-123" />);
+        await waitFor(() => {
+            expect(screen.getByText("Song Unknown")).toBeInTheDocument();
+            expect(screen.getByText("Desconocido")).toBeInTheDocument();
+        });
+    });
+
+    it("handles successful status update with RECHAZADO with no warnings or success messages", async () => {
+        render(<LiveRequestsFeed eventoId="event-123" />);
+        await waitFor(() => {
+            expect(screen.getByText("Song A")).toBeInTheDocument();
+        });
+
+        const rejectButtons = screen.getAllByRole("button").filter(btn => btn.classList.contains("text-zinc-400"));
+        (fetchApi as any).mockResolvedValue({ ok: true });
+
+        fireEvent.click(rejectButtons[0]);
+
+        await waitFor(() => {
+            expect(fetchApi).toHaveBeenCalledWith("/api/pedidos/req-1/estado", expect.any(Object));
+            expect(toast.success).not.toHaveBeenCalled();
+            expect(toast.warning).not.toHaveBeenCalled();
+        });
+    });
+
+    it("handles fetch requests failing (not ok)", async () => {
+        (fetchApi as any).mockImplementation(async (path: string) => {
+            if (path.includes("/pedidos")) {
+                return { ok: false };
+            }
+            return { ok: true };
+        });
+
+        render(<LiveRequestsFeed eventoId="event-123" />);
+        await waitFor(() => {
+            expect(screen.queryByText("Song A")).not.toBeInTheDocument();
+        });
+    });
 });

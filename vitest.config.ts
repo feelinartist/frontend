@@ -20,16 +20,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      include: ['src/**/*'],
+      include: ['src/**/*', 'middleware.ts'],
       exclude: [
         'src/types/**/*',
         'src/**/*.d.ts',
-        'src/app/layout.tsx',
-        'src/app/providers.tsx',
         'src/app/globals.css',
-        'src/app/(dashboard)/layout.tsx',
-        'src/app/(dashboard)/page.tsx',
-        'src/middleware.ts',
       ],
     },
   },

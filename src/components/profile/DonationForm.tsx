@@ -208,16 +208,14 @@ export function DonationForm({ metodosDonacion, perfilArtista, usuarioId, onSave
             });
 
             if (!response.ok) {
-                const errorBody = await parseJsonSafe<{ message?: string }>(response);
-                throw new Error(errorBody?.message || "Error al guardar");
+                const bodyError = await parseJsonSafe<{ message?: string }>(response);
+                throw new Error(bodyError?.message || "Error al guardar");
             }
-
             toast.success("Métodos de donación actualizados correctamente");
             onSave();
-        } catch (error: unknown) {
-            console.error("Error:", error);
-            const errorMessage = error instanceof Error ? error.message : "Error al actualizar métodos de donación";
-            toast.error(errorMessage);
+        } catch (e: unknown) {
+            console.error("Excepción en donaciones:", e);
+            toast.error(e instanceof Error ? e.message : "Error al actualizar métodos de donación");
         } finally {
             setGlobalLoading(false);
         }

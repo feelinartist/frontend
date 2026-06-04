@@ -138,4 +138,11 @@ describe("SongDetailsTable Component", () => {
         fireEvent.click(newPrevBtn);
         expect(mockProps.onPageChange).toHaveBeenLastCalledWith(1);
     });
+
+    it("handles alternative sort highlights and page limit fallback", () => {
+        render(<SongDetailsTable {...mockProps} currentSort="aceptadas" totalPages={0} />);
+        const totalSortBtn = screen.getByRole("button", { name: /total/i });
+        expect(totalSortBtn.className).not.toContain("text-indigo-400");
+        expect(screen.getByText(/Página 1 de 1/i)).toBeInTheDocument();
+    });
 });

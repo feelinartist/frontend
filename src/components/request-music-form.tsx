@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ interface RequestMusicFormProps {
 
 
 export function RequestMusicForm({ eventoId, artistName, artistProfile }: RequestMusicFormProps) {
+    const { data: session } = useSession();
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
@@ -152,7 +154,7 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                     artista: selectedTrack.artists[0].name,
                     itunesId: selectedTrack.itunesId,
                     nombreSolicitante: yourName,
-                    usuarioId: null, // Public request
+                    usuarioId: session?.user?.id ?? null,
                     genero: selectedTrack.genre,
                     imagenUrl: selectedTrack.artworkUrlHighRes || selectedTrack.album.images[0].url,
                     previewUrl: selectedTrack.previewUrl
@@ -192,7 +194,7 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                     const qrImage = artistProfile?.pagoQR || artistProfile?.musicQR; // Fallback logic adjust if needed
                     const hasDonationMethods = artistProfile?.metodosDonacion && artistProfile.metodosDonacion.length > 0;
                     const hasSocialMedia = artistProfile?.redesSociales && artistProfile.redesSociales.length > 0;
-                    const hasDonationOptions = (qrImage && artistProfile?.nombreQR) || artistProfile?.urlPago || hasDonationMethods;
+                    const hasDonationOptions = qrImage || artistProfile?.urlPago || hasDonationMethods;
 
                     const showSection = hasDonationOptions || hasSocialMedia;
 
@@ -203,13 +205,15 @@ export function RequestMusicForm({ eventoId, artistName, artistProfile }: Reques
                             </p>
 
                             {/* QR Code */}
-                            {qrImage && artistProfile?.nombreQR && (
+                            {qrImage && (
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="p-1.5 bg-white rounded-lg shadow-lg">
                                         <Image src={qrImage} alt="QR Donación" width={96} height={96} className="w-24 h-24 object-contain" unoptimized />
                                     </div>
                                     <div className="flex flex-col items-center gap-1.5">
-                                        <p className="text-[10px] font-bold text-white uppercase tracking-wider">{artistProfile?.nombreQR}</p>
+                                        {artistProfile?.nombreQR && (
+                                            <p className="text-[10px] font-bold text-white uppercase tracking-wider">{artistProfile?.nombreQR}</p>
+                                        )}
                                         <button
                                             onClick={async (e) => {
                                                 e.preventDefault();

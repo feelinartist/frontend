@@ -399,4 +399,150 @@ describe("PaginaPanelControl Component", () => {
         expect(screen.getByTestId("profile-checklist")).toBeInTheDocument();
         expect(localStorage.getItem("checklist-dismissed")).toBe("false");
     });
+
+    it("handles exception when resetting profile completed acknowledgment", async () => {
+        (useSession as any).mockReturnValue({
+            data: { user: { id: "artist-1", name: "Artist User", rol: "ARTISTA" } },
+            status: "authenticated",
+        });
+
+        (fetchApi as any).mockImplementation((url: string, init?: RequestInit) => {
+            if (url.includes("/api/usuarios/perfil/")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => ({
+                        perfilArtista: { id: "artist-profile-1", biografia: "bio" },
+                        perfilCompletadoReconocido: true,
+                    }),
+                });
+            }
+            if (url.includes("/api/usuarios/marcar-perfil-completado")) {
+                return Promise.reject(new Error("Reset fail"));
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        render(<PaginaPanelControl />);
+
+        await waitFor(() => {
+            expect(console.error).toHaveBeenCalledWith("Error resetting profile acknowledgment:", expect.any(Error));
+        });
+    });
+
+    it("handles initialization when window is undefined", () => {
+        const originalWindow = globalThis.window;
+        
+        Object.defineProperty(globalThis, 'window', {
+            get() {
+                const stack = new Error().stack || "";
+                if (stack.includes("PaginaPanelControl") || stack.includes("page.tsx")) {
+                    return undefined;
+                }
+                return originalWindow;
+            },
+            configurable: true
+        });
+
+        render(<PaginaPanelControl />);
+        expect(screen.getByTestId("loading-screen")).toBeInTheDocument();
+
+        // Restore window descriptor
+        Object.defineProperty(globalThis, 'window', {
+            value: originalWindow,
+            writable: true,
+            configurable: true
+        });
+    });
+
+    it("does not redirect when active event fetch returns null eventData", async () => {
+        // sessionStorage NOT set so the event check branch runs
+        (useSession as any).mockReturnValue({
+            data: {
+                user: { id: "artist-1", name: "Artist User", rol: "ARTISTA" },
+            },
+            status: "authenticated",
+        });
+
+        (fetchApi as any).mockImplementation((url: string) => {
+            if (url.includes("/api/usuarios/perfil/")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => ({
+                        perfilArtista: {
+                            id: "artist-profile-1",
+                            biografia: "bio",
+                            categoria: "rock",
+                            galeria: [{ urlImagen: "url1" }],
+                            redesSociales: [{ plataforma: "IG", url: "url" }],
+                            metodosDonacion: [{ tipo: "paypal" }],
+                        },
+                        perfilCompletadoReconocido: true,
+                    }),
+                });
+            }
+            if (url.includes("/api/eventos/activo/")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => null, // eventData is null
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        render(<PaginaPanelControl />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Bienvenido, Artist User")).toBeInTheDocument();
+        });
+
+        // Should NOT redirect since eventData is null
+        expect(toast.info).not.toHaveBeenCalled();
+        expect(mockPush).not.toHaveBeenCalled();
+        // sessionStorage should still be set (line 76 reached)
+        expect(sessionStorage.getItem("eventRedirectChecked")).toBe("true");
+    });
+
+    it("does not show restore checklist button when profile is complete and acknowledged", async () => {
+        // Set checklist as dismissed so the restore button condition is evaluated
+        localStorage.setItem("checklist-dismissed", "true");
+
+        (useSession as any).mockReturnValue({
+            data: {
+                user: { id: "artist-1", name: "Artist User", rol: "ARTISTA" },
+            },
+            status: "authenticated",
+        });
+
+        // Fully complete profile with acknowledged flag
+        (fetchApi as any).mockImplementation((url: string) => {
+            if (url.includes("/api/usuarios/perfil/")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => ({
+                        perfilArtista: {
+                            id: "artist-profile-1",
+                            biografia: "Biografía completa",
+                            categoria: "rock",
+                            galeria: [{ urlImagen: "img1.jpg" }],
+                            redesSociales: [{ plataforma: "Instagram", url: "https://ig.com" }],
+                            metodosDonacion: [{ tipo: "paypal", detalle: "email@test.com" }],
+                        },
+                        perfilCompletadoReconocido: true,
+                    }),
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        render(<PaginaPanelControl />);
+
+        await waitFor(() => {
+            expect(screen.getByText("Bienvenido, Artist User")).toBeInTheDocument();
+        });
+
+        // Checklist should NOT show (shouldShowChecklist is false because profile is complete AND reconocido)
+        expect(screen.queryByTestId("profile-checklist")).not.toBeInTheDocument();
+        // Restore button should NOT show (isProfileComplete() is true AND reconocido is true)
+        expect(screen.queryByRole("button", { name: "Mostrar sugerencias de perfil" })).not.toBeInTheDocument();
+    });
 });

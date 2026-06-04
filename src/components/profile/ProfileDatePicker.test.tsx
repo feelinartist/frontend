@@ -15,6 +15,9 @@ vi.mock('@/components/ui/calendar', () => ({
       <button data-testid="calendar-select" onClick={() => onSelect(new Date('2020-05-15T12:00:00.000Z'))}>
         Select Date
       </button>
+      <button data-testid="calendar-select-none" onClick={() => onSelect(undefined)}>
+        Select None
+      </button>
       <div data-testid="calendar-disabled">{disabled(new Date('2030-01-01')) ? 'disabled' : 'enabled'}</div>
     </div>
   ),
@@ -66,5 +69,25 @@ describe('ProfileDatePicker', () => {
     fireEvent.click(screen.getByTestId('calendar-select'));
     expect(onSelect).toHaveBeenCalledWith(new Date('2020-05-15T12:00:00.000Z'));
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('does not trigger callbacks when undefined date is selected', () => {
+    const onOpenChange = vi.fn();
+    const onSelect = vi.fn();
+
+    render(
+      <ProfileDatePicker
+        label="Fecha de inicio"
+        date={undefined}
+        open={true}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+        placeholder="Selecciona una fecha"
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('calendar-select-none'));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
   });
 });

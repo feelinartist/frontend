@@ -7,6 +7,7 @@ import { ProfileFormWrapper } from '@/components/profile/ProfileFormWrapper';
 import { useFormData } from '@/lib/useFormData';
 
 interface VenueUserData {
+    id?: string;
     nombre?: string;
     nombreUsuario?: string;
     correo?: string;
@@ -64,6 +65,7 @@ export function VenueProfileForm({ userData, onSubmit, countries, isLoading }: V
                 usernameValue={formData.nombreUsuario}
                 onUsernameChange={(value) => updateField('nombreUsuario', value)}
                 onStatusChange={setUsuarioVerificado}
+                usuarioId={userData.id}
             />
 
             <div className="h-px bg-zinc-900 w-full" />

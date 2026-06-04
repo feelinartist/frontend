@@ -2,5 +2,5 @@ projectKey=Feelin-Artist-Frontend
 serverUrl=http://localhost:9000
 serverVersion=26.4.0.121862
 dashboardUrl=http://localhost:9000/dashboard?id=Feelin-Artist-Frontend
-ceTaskId=cbe59889-8adf-44b4-a74e-2912ed0025e6
-ceTaskUrl=http://localhost:9000/api/ce/task?id=cbe59889-8adf-44b4-a74e-2912ed0025e6
+ceTaskId=6770edc7-6b4b-464d-a313-9e356ae60471
+ceTaskUrl=http://localhost:9000/api/ce/task?id=6770edc7-6b4b-464d-a313-9e356ae60471

@@ -11,6 +11,7 @@ type NameAndUsernameSectionProps = {
   readonly usernameValue: string;
   readonly onUsernameChange: (value: string) => void;
   readonly onStatusChange: (value: boolean) => void;
+  readonly usuarioId?: string;
 };
 
 export function NameAndUsernameSection({
@@ -22,6 +23,7 @@ export function NameAndUsernameSection({
   usernameValue,
   onUsernameChange,
   onStatusChange,
+  usuarioId,
 }: NameAndUsernameSectionProps) {
   return (
     <>
@@ -45,6 +47,7 @@ export function NameAndUsernameSection({
           value={usernameValue}
           onChange={onUsernameChange}
           onStatusChange={onStatusChange}
+          usuarioId={usuarioId}
         />
       </div>
     </>

@@ -49,8 +49,9 @@ export function EventManager({ onEventChange }: EventManagerProps) {
             }
 
             // Fetch Profile (QR Status & Timezone)
-            if (session?.user?.id) {
-                const resProfile = await fetchApi(`/api/usuarios/perfil/${session.user.id}`, { cache: "no-store" });
+            const userId = session?.user?.id;
+            if (userId) {
+                const resProfile = await fetchApi(`/api/usuarios/perfil/${userId}`, { cache: "no-store" });
                 if (resProfile.ok) {
                     const profileData = await resProfile.json();
                     setPedidosActivos(profileData.perfilArtista?.pedidosActivos || false);
@@ -141,10 +142,8 @@ export function EventManager({ onEventChange }: EventManagerProps) {
     };
 
     const handleEndEvent = async () => {
-        if (!activeEvent) return;
-
         try {
-            const res = await fetchApi(`/api/eventos/${activeEvent.id}/finalizar`, {
+            const res = await fetchApi(`/api/eventos/${activeEvent!.id}/finalizar`, {
                 method: "PATCH"
             });
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getCountryByCode } from "@/lib/countries";
+import { RedSocial, PublicUser } from "@/types/artist";
 
 function getSocialIcon(name: string, dbIcon: string | undefined) {
     const iconType = (dbIcon || name).toLowerCase();
@@ -36,55 +37,6 @@ function getYoutubeVideoId(url: string | undefined) {
     return match ? match[2] : null;
 }
 
-
-interface RedSocial {
-    nombreUsuario: string;
-    id?: string;
-    redSocial?: {
-        nombre: string;
-        urlBase: string;
-        icono?: string;
-    };
-    [key: string]: unknown;
-}
-
-interface Evento {
-    titulo: string;
-    descripcion: string;
-    estado: string;
-    [key: string]: unknown;
-}
-
-interface PublicUser {
-    id: string;
-    nombre?: string;
-    nombreUsuario?: string;
-    imagen?: string;
-    perfilArtista?: {
-        nombreArtistico?: string;
-        biografia?: string;
-        generoMusical?: string;
-        pais?: string;
-        paisId?: string;
-        ciudad?: string;
-        ciudadId?: string;
-        fechaInicio?: string;
-        tarifaPorHora?: string;
-        moneda?: string;
-        categoria?: string;
-        lugaresConocidos?: string[];
-        urlPago?: string | null;
-        pagoQR?: string | null;
-        musicQR?: string | null;
-        nombreQR?: string | null;
-        urlYoutubeFavorito?: string;
-        urlSoundCloudFavorito?: string;
-        redesSociales?: RedSocial[];
-        eventos?: Evento[];
-        galeria?: { id: string; urlImagen?: string; url?: string }[];
-    };
-    [key: string]: unknown;
-}
 
 export default function PaginaPerfilArtistaPublico() {
     const { username } = useParams();
@@ -163,8 +115,7 @@ export default function PaginaPerfilArtistaPublico() {
 
     // Experience Calc
     const getExperience = () => {
-        if (!perfil.fechaInicio) return "N/A";
-        const start = new Date(perfil.fechaInicio);
+        const start = new Date(perfil.fechaInicio!);
         const now = new Date();
         let diff = now.getFullYear() - start.getFullYear();
         const m = now.getMonth() - start.getMonth();
@@ -233,7 +184,7 @@ export default function PaginaPerfilArtistaPublico() {
                 }
             }
         } else {
-            const shareUrl = globalThis.window === undefined ? '' : `${globalThis.location.href.split('?')[0]}/music`;
+            const shareUrl = globalThis.location === undefined ? '' : `${globalThis.location.href.split('?')[0]}/music`;
             await navigator.clipboard.writeText(shareUrl);
             toast.success('Enlace copiado al portapapeles');
         }
@@ -361,7 +312,7 @@ export default function PaginaPerfilArtistaPublico() {
                                             if (isUrl) return (
                                                 <div className="relative w-4 h-4">
                                                     <Image
-                                                        src={dbIcon || ""}
+                                                        src={dbIcon!}
                                                         alt={name}
                                                         fill
                                                         sizes="16px"
@@ -477,7 +428,7 @@ export default function PaginaPerfilArtistaPublico() {
                                                     const url = globalThis.URL.createObjectURL(blob);
                                                     const a = document.createElement('a');
                                                     a.href = url;
-                                                    a.download = `QR-${perfil.nombreQR || 'donacion'}.png`;
+                                                    a.download = `QR-${perfil.nombreQR}.png`;
                                                     document.body.appendChild(a);
                                                     a.click();
                                                     a.remove();
@@ -558,7 +509,7 @@ export default function PaginaPerfilArtistaPublico() {
                                         <QRCode
                                             size={256}
                                             style={{ height: "auto", maxWidth: "100%", width: "100%" }}
-                                            value={`${globalThis.window === undefined ? '' : globalThis.location.href.split('?')[0]}/music`}
+                                            value={`${globalThis.location === undefined ? '' : globalThis.location.href.split('?')[0]}/music`}
                                             viewBox={`0 0 256 256`}
                                         />
                                     </div>
@@ -588,12 +539,35 @@ export default function PaginaPerfilArtistaPublico() {
                                         Compartir
                                     </button>
                                 </div>
+                                
+                                {/* Copyable Link */}
+                                <div className="flex items-center gap-2 w-full mt-2 bg-zinc-900 border border-white/10 rounded-lg p-1.5 pl-3">
+                                    <input 
+                                        readOnly 
+                                        value={`${globalThis.location === undefined ? '' : globalThis.location.href.split('?')[0]}/music`}
+                                        className="w-full bg-transparent text-xs text-zinc-400 outline-none truncate" 
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const url = `${globalThis.location === undefined ? '' : globalThis.location.href.split('?')[0]}/music`;
+                                            navigator.clipboard.writeText(url);
+                                            toast.success("Enlace copiado al portapapeles");
+                                        }}
+                                        className="p-2 shrink-0 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 rounded-md transition-colors"
+                                        title="Copiar enlace"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
                         )}
 
                         {/* Multimedia Section - Only show if has content */}
                         {(() => {
-                            const hasYouTubeFavorito = !!perfil.urlYoutubeFavorito;
+                            const videoIdYoutubeFavorito = getYoutubeVideoId(perfil.urlYoutubeFavorito);
+                            const hasYouTubeFavorito = !!videoIdYoutubeFavorito;
                             const hasSoundCloudFavorito = !!perfil.urlSoundCloudFavorito;
 
                             const hasYouTube = perfil.redesSociales?.some((r: RedSocial) => {
@@ -615,30 +589,27 @@ export default function PaginaPerfilArtistaPublico() {
                                     </h2>
                                     <div className="grid grid-cols-1 gap-6">
                                         {/* YouTube Favorito */}
-                                        {hasYouTubeFavorito && perfil.urlYoutubeFavorito && (() => {
-                                            const videoId = getYoutubeVideoId(perfil.urlYoutubeFavorito);
-                                            if (videoId) {
-                                                return (
-                                                    <div key="yt-fav" className="space-y-2">
-                                                        <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium flex items-center gap-1.5">
-                                                            <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
-                                                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                                                            </svg>
-                                                            YouTube
-                                                        </p>
-                                                        <div className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl aspect-video relative group">
-                                                            <iframe
-                                                                src={`https://www.youtube.com/embed/${videoId}`}
-                                                                title="YouTube video"
-                                                                className="w-full h-full"
-                                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                                allowFullScreen
-                                                            />
-                                                        </div>
+                                        {videoIdYoutubeFavorito && (() => {
+                                            const videoId = videoIdYoutubeFavorito;
+                                            return (
+                                                <div key="yt-fav" className="space-y-2">
+                                                    <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium flex items-center gap-1.5">
+                                                        <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                                                        </svg>
+                                                        YouTube
+                                                    </p>
+                                                    <div className="rounded-2xl overflow-hidden border border-white/5 bg-zinc-900 shadow-xl aspect-video relative group">
+                                                        <iframe
+                                                            src={`https://www.youtube.com/embed/${videoId}`}
+                                                            title="YouTube video"
+                                                            className="w-full h-full"
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                            allowFullScreen
+                                                        />
                                                     </div>
-                                                );
-                                            }
-                                            return null;
+                                                </div>
+                                            );
                                         })()}
 
                                         {/* SoundCloud Favorito */}
@@ -657,7 +628,7 @@ export default function PaginaPerfilArtistaPublico() {
                                                         style={{ border: 0, overflow: 'hidden' }}
                                                         allow="autoplay"
                                                         title="SoundCloud favorite track"
-                                                        src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(perfil.urlSoundCloudFavorito || '')}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
+                                                        src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(perfil.urlSoundCloudFavorito!)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true`}
                                                     ></iframe>
                                                 </div>
                                             </div>

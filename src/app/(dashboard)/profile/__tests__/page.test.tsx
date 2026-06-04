@@ -76,6 +76,22 @@ vi.mock("@/components/ui/country-phone-selector", () => ({
     ),
 }));
 
+vi.mock("@/components/ui/select", () => ({
+    Select: ({ children, value, onValueChange }: any) => (
+        <select 
+            data-testid="select-mock" 
+            value={value} 
+            onChange={(e) => onValueChange(e.target.value)}
+        >
+            {children}
+        </select>
+    ),
+    SelectTrigger: ({ children }: any) => children,
+    SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+    SelectContent: ({ children }: any) => children,
+    SelectItem: ({ children, value }: any) => <option value={value}>{children}</option>,
+}));
+
 vi.mock("@/components/profile/GalleryForm", () => ({
     GalleryForm: () => <div data-testid="gallery-form">Gallery Form</div>,
 }));
@@ -941,4 +957,120 @@ describe("PaginaPerfil Component", () => {
             });
         });
     });
+
+    describe("Coverage Expansion Tests", () => {
+        const mockUpdate = vi.fn();
+        const defaultSession = {
+            user: {
+                id: "user-123",
+                email: "test@user.com",
+                rol: "PUBLICO",
+                name: "John Public",
+            },
+        };
+
+        const defaultProfile = {
+            nombre: "John Public",
+            correo: "test@user.com",
+            nombreUsuario: "johnpublic",
+            perfilPublico: {
+                pais: "PE",
+                ciudad: "Lima",
+                numeroTelefono: "123456789",
+                codigoTelefono: "+51",
+                zonaHoraria: "America/Lima",
+            },
+        };
+
+        beforeEach(() => {
+            (useSession as any).mockReturnValue({
+                data: defaultSession,
+                update: mockUpdate,
+            });
+        });
+
+        it("handles form submission failure when username is not verified", async () => {
+            (fetchApi as any).mockResolvedValue({
+                ok: true,
+                json: async () => defaultProfile,
+            });
+
+            render(<PaginaPerfil />);
+            await waitFor(() => {
+                expect(screen.getByLabelText("Nombre Completo")).toBeInTheDocument();
+            });
+
+            // Click unverify button rendered by mocked UsernameInput
+            fireEvent.click(screen.getByTestId("set-unverified"));
+
+            const submitBtn = screen.getByRole("button", { name: /guardar cambios/i });
+            const form = submitBtn.closest("form")!;
+            fireEvent.submit(form);
+
+            await waitFor(() => {
+                expect(toast.error).toHaveBeenCalledWith("Por favor verifica tu nombre de usuario");
+            });
+        });
+
+        it("triggers pais Select onValueChange callback", async () => {
+            (fetchApi as any).mockResolvedValue({
+                ok: true,
+                json: async () => defaultProfile,
+            });
+
+            render(<PaginaPerfil />);
+            await waitFor(() => {
+                expect(screen.getByLabelText("Nombre Completo")).toBeInTheDocument();
+            });
+
+            const selects = screen.getAllByTestId("select-mock");
+            const paisSelect = selects[0];
+            fireEvent.change(paisSelect, { target: { value: "US" } });
+            expect(paisSelect.value).toBe("US");
+
+            const tzSelect = selects[1];
+            fireEvent.change(tzSelect, { target: { value: "America/Santiago" } });
+            expect(tzSelect.value).toBe("America/Santiago");
+        });
+
+        it("does not show artist tabs when user is ARTISTA but perfilArtista is null", async () => {
+            // Session has ARTISTA role but session.user.id is undefined to cover fallback
+            (useSession as any).mockReturnValue({
+                data: {
+                    user: {
+                        id: "user-123",
+                        email: "test@user.com",
+                        rol: "ARTISTA",
+                        name: "Artist No Profile",
+                    },
+                },
+                update: mockUpdate,
+            });
+
+            // Profile response has NO perfilArtista (null) — covers line 547 false branch
+            const profileWithoutArtista = {
+                nombre: "Artist No Profile",
+                correo: "test@user.com",
+                nombreUsuario: "noartist",
+                perfilArtista: null,
+            };
+
+            (fetchApi as any).mockResolvedValue({
+                ok: true,
+                json: async () => profileWithoutArtista,
+            });
+
+            render(<PaginaPerfil />);
+
+            await waitFor(() => {
+                expect(screen.getByText(/No tienes un perfil de\s*Artista/i)).toBeInTheDocument();
+            });
+
+            // Artist-specific tabs should NOT be rendered (line 547: esArtista && perfilCompleto?.perfilArtista is falsy)
+            expect(screen.queryByRole("tab", { name: /Galería/i })).not.toBeInTheDocument();
+            expect(screen.queryByRole("tab", { name: /Redes/i })).not.toBeInTheDocument();
+            expect(screen.queryByRole("tab", { name: /Donaciones/i })).not.toBeInTheDocument();
+        });
+    });
 });
+

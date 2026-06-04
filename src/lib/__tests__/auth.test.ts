@@ -228,6 +228,40 @@ describe("getAuthOptions", () => {
                 }
             });
 
+            it("should handle user without email, name, or image", async () => {
+                const options = getAuthOptions();
+                const jwtCallback = options.callbacks?.jwt;
+
+                const mockFetch = vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        id: "db-user-id",
+                        token: "db-jwt-token",
+                    }),
+                });
+                global.fetch = mockFetch;
+
+                if (jwtCallback) {
+                    const token = {};
+                    const result = await jwtCallback({
+                        token,
+                        user: {} as any, // Missing all fields
+                        account: { provider: "google" } as any,
+                    });
+
+                    expect(mockFetch).toHaveBeenCalledWith(
+                        expect.any(String),
+                        expect.objectContaining({
+                            body: JSON.stringify({
+                                correo: null,
+                                nombre: null,
+                                imagen: null,
+                            }),
+                        })
+                    );
+                }
+            });
+
             it("should throw error if fetch response is not ok", async () => {
                 const options = getAuthOptions();
                 const jwtCallback = options.callbacks?.jwt;
@@ -309,6 +343,30 @@ describe("getAuthOptions", () => {
                         email: "old@example.com",
                     });
                     expect(result.accessToken).toBe("backend-jwt-token");
+                }
+            });
+
+            it("should not populate session.user fields if token fields are undefined", async () => {
+                const options = getAuthOptions();
+                const sessionCallback = options.callbacks?.session;
+
+                if (sessionCallback) {
+                    const session = {
+                        user: {
+                            name: "Old Name",
+                        },
+                    } as any;
+
+                    const token = {
+                        perfilCompletadoReconocido: undefined,
+                    };
+
+                    const result = await sessionCallback({ session, token, user: null as any });
+
+                    expect(result.user).toEqual({
+                        name: "Old Name",
+                    });
+                    expect(result.accessToken).toBeUndefined();
                 }
             });
 

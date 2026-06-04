@@ -83,10 +83,10 @@ export default function ConfigSistemaPage() {
                 }));
                 setConfigs(mappedData);
                 // Initialize showValues
-                const visibility: { [key: string]: boolean } = {};
-                data.forEach((c: ConfigSistema) => {
-                    visibility[c.id] = false;
-                });
+                const visibility = data.reduce((acc: Record<string, boolean>, c: ConfigSistema) => {
+                    acc[c.id] = false;
+                    return acc;
+                }, {});
                 setShowValues(visibility);
             } else {
                 toast.error("Error al cargar configuraciones");

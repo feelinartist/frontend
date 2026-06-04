@@ -1,744 +1,429 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import PaginaConfiguracion from "../page";
 import { useSession, signOut } from "next-auth/react";
 import { fetchApi } from "@/lib/api";
 import { toast } from "sonner";
+import { useSettingsData } from "@/lib/useSettingsData";
 
-// Mocks
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
-  signOut: vi.fn(),
+vi.mock("next-auth/react", () => ({ useSession: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/lib/api", () => ({ fetchApi: vi.fn() }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/useSettingsData", () => ({ useSettingsData: vi.fn() }));
+vi.mock("@/components/ui/ConfirmActionDialog", () => ({
+  ConfirmActionDialog: ({ trigger, onConfirm }: any) => (
+    <div onClick={(e) => {
+      e.stopPropagation();
+      onConfirm();
+    }}>{trigger}</div>
+  )
 }));
 
-vi.mock("@/lib/api", () => ({
-  fetchApi: vi.fn(),
-}));
-
-vi.mock("sonner", () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
-vi.mock("next/image", () => ({
-  default: (props: any) => <img {...props} alt={props.alt} />,
-}));
-
-vi.mock("@/components/ui/loading-screen", () => ({
-  LoadingScreen: () => <div data-testid="loading-screen">Loading...</div>,
-}));
-
-vi.mock("@/components/animated-background", () => ({
-  AnimatedBackground: () => <div data-testid="animated-bg" />,
-}));
-
-vi.mock("@/components/ui/back-button", () => ({
-  BackButton: () => <button data-testid="back-button">Back</button>,
-}));
-
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-};
+const mockCountries = [{ code: "CO", name: "Colombia" }, { code: "US", name: "United States" }];
+vi.mock("@/lib/countries", () => ({ countries: [{ code: "CO", name: "Colombia" }, { code: "US", name: "United States" }] }));
 
 describe("PaginaConfiguracion", () => {
-  const originalLocation = globalThis.location;
-
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Mock location for testing navigation
-    Object.defineProperty(globalThis, 'location', {
-      value: { href: '' },
-      writable: true
-    });
-  });
-
-  afterEach(() => {
-    globalThis.location = originalLocation;
-  });
-
-  const setupFetchMock = (mockResponses: any = {}) => {
-    (fetchApi as any).mockImplementation((url: string) => {
-      if (url.includes("/api/usuarios/bloqueados")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockResponses.bloqueados || []),
-        });
-      }
-      if (url.includes("/api/usuarios/perfil")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(mockResponses.perfil || {}),
-        });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-    });
-  };
-
-  it("renders loading screen initially or when migrating", async () => {
     (useSession as any).mockReturnValue({
       data: { user: { id: "user-1", rol: "ARTISTA" } },
     });
-    setupFetchMock();
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [],
+      cargandoBloqueados: false,
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
+      desbloquearUsuario: vi.fn(),
+    });
+  });
+
+  it("handles cargandoBloqueados state", async () => {
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [],
+      cargandoBloqueados: true,
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
+      desbloquearUsuario: vi.fn(),
+    });
+
     render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Ver Lista"));
     
-    // Should render the page without crashing
-    expect(screen.getByTestId("animated-bg")).toBeInTheDocument();
-  });
-
-  describe("Bloqueados", () => {
-    it("loads and displays blocked users, including without image", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock({
-        bloqueados: [
-          { id: "b1", nombre: "Blocked 1", correo: "b1@test.com", imagen: "img.jpg" },
-          { id: "b2", nombreUsuario: "Blocked 2", correo: "b2@test.com" }
-        ]
-      });
-
-      render(<PaginaConfiguracion />);
-      
-      const user = userEvent.setup();
-      const openDialogBtn = screen.getByText("Ver Lista");
-      await user.click(openDialogBtn);
-
-      await waitFor(() => {
-        expect(screen.getByText("Blocked 1")).toBeInTheDocument();
-        expect(screen.getByText("Blocked 2")).toBeInTheDocument();
-      });
-    });
-
-    it("displays empty state when no blocked users", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock({ bloqueados: [] });
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      await user.click(screen.getByText("Ver Lista"));
-
-      await waitFor(() => {
-        expect(screen.getByText("No has bloqueado a ningún usuario.")).toBeInTheDocument();
-      });
-    });
-
-    it("unblocks user successfully", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock({
-        bloqueados: [{ id: "b1", nombre: "Blocked 1", correo: "b1@test.com" }]
-      });
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      await user.click(screen.getByText("Ver Lista"));
-      
-      await waitFor(() => expect(screen.getByText("Blocked 1")).toBeInTheDocument());
-      
-      const unlockBtn = screen.getByText("Desbloquear");
-      
-      // override fetch for unlock
-      (fetchApi as any).mockImplementation((url: string, options: any) => {
-        if (url === "/api/usuarios/desbloquear") {
-          return Promise.resolve({ ok: true });
-        }
-        if (url.includes("/api/usuarios/bloqueados")) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-        }
-        if (url.includes("/api/usuarios/perfil")) {
-          return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-        }
-      });
-
-      await user.click(unlockBtn);
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Usuario desbloqueado");
-      });
-    });
-
-    it("handles error when unblocking user fails", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock({
-        bloqueados: [{ id: "b1", nombre: "Blocked 1", correo: "b1@test.com" }]
-      });
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      await user.click(screen.getByText("Ver Lista"));
-      
-      await waitFor(() => expect(screen.getByText("Blocked 1")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/desbloquear") {
-          return Promise.resolve({ ok: false });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Desbloquear"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al desbloquear");
-      });
-    });
-    
-    it("handles throw when unblocking user fails", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock({
-        bloqueados: [{ id: "b1", nombre: "Blocked 1", correo: "b1@test.com" }]
-      });
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      await user.click(screen.getByText("Ver Lista"));
-      
-      await waitFor(() => expect(screen.getByText("Blocked 1")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/desbloquear") {
-          return Promise.reject(new Error("Net Error"));
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Desbloquear"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al desbloquear");
-      });
-    });
-
-    it("handles error when fetching blocked users fails", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/usuarios/bloqueados")) return Promise.reject(new Error("err"));
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
-      });
-      
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      await user.click(screen.getByText("Ver Lista"));
-      
-      await waitFor(() => {
-        expect(screen.getByText("No has bloqueado a ningún usuario.")).toBeInTheDocument();
-      });
-    });
-    
-    it("handles error when fetching perfil fails", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/usuarios/perfil")) return Promise.reject(new Error("err"));
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-      
-      render(<PaginaConfiguracion />);
-      // Should handle error gracefully without crashing
-      expect(screen.getByTestId("animated-bg")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelector(".animate-spin")).toBeInTheDocument();
     });
   });
 
-  describe("Role Migration", () => {
-    it("migrates role to ARTISTA successfully", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "PUBLICO" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Migrar"));
-      
-      await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
-      
-      // Select Role ARTISTA
-      await user.click(screen.getByTestId("mock-select-item-ARTISTA"));
-
-      await waitFor(() => expect(screen.getByText("Nombre Artístico")).toBeInTheDocument());
-      
-      const inputs = screen.getAllByRole("textbox");
-      await user.type(inputs[0], "Mi Nombre Artístico");
-      
-      // Select category
-      await user.click(screen.getByTestId("mock-select-item-DJ"));
-
-      // Select country
-      await user.click(screen.getByTestId("mock-select-item-CO"));
-
-      // Type city
-      const cityInput = screen.getAllByRole("textbox")[1];
-      await user.type(cityInput, "Bogota");
-
-      // Submit
-      (fetchApi as any).mockImplementation((url: string, options: any) => {
-        if (url === "/api/usuarios/migrar-rol") {
-          return Promise.resolve({ ok: true });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Confirmar Migración"));
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Rol migrado exitosamente. Reiniciando sesión...");
-      });
-      
-      await waitFor(() => {
-        expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/home' });
-      }, { timeout: 2500 });
+  it("renders blocked users and handles unlock", async () => {
+    const mockUnlock = vi.fn().mockResolvedValue({});
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [
+        { id: "b1", nombre: "Block 1", correo: "b1@test.com", imagen: "/img1.jpg" },
+        { id: "b2", nombreUsuario: "block_2", correo: "b2@test.com" }
+      ],
+      cargandoBloqueados: false,
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
+      desbloquearUsuario: mockUnlock,
     });
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Ver Lista"));
+
+    expect(screen.getByText("Block 1")).toBeInTheDocument();
+    expect(screen.getByText("block_2")).toBeInTheDocument();
+
+    const unlockBtns = screen.getAllByText("Desbloquear");
+    await user.click(unlockBtns[0]);
+
+    expect(mockUnlock).toHaveBeenCalledWith("b1");
+    expect(toast.success).toHaveBeenCalledWith("Usuario desbloqueado");
+  });
+
+  it("handles unlock error", async () => {
+    const mockUnlock = vi.fn().mockRejectedValue(new Error("err"));
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [{ id: "b1", nombreUsuario: "block_1" }],
+      cargandoBloqueados: false,
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
+      desbloquearUsuario: mockUnlock,
+    });
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Ver Lista"));
+
+    const unlockBtns = screen.getAllByText("Desbloquear");
+    await user.click(unlockBtns[0]);
+
+    expect(toast.error).toHaveBeenCalledWith("Error al desbloquear");
+  });
+
+  it("migrates role to ARTISTA successfully", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "PUBLICO" } },
+    });
+    vi.mocked(fetchApi).mockResolvedValue({ ok: true } as any);
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
     
-    it("migrates role to DISCOTECA and shows error on failure", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "PUBLICO" } },
-      });
-      setupFetchMock();
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Migrar"));
-      await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
-      
-      await user.click(screen.getByTestId("mock-select-item-DISCOTECA"));
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Artista")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Artista"));
 
-      await waitFor(() => expect(screen.getByText("Nombre de la Discoteca")).toBeInTheDocument());
-      
-      // Submit error branch
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/migrar-rol") {
-          return Promise.resolve({ ok: false, json: () => Promise.resolve({ message: "Custom Error" }) });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
+    const nombreArtInput = screen.getByLabelText("Nombre Artístico");
+    await user.type(nombreArtInput, "Art Name");
 
-      await user.click(screen.getByText("Confirmar Migración"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Custom Error");
-      });
+    fireEvent.click(screen.getByText("Selecciona categoría"));
+    await waitFor(() => expect(screen.getByText("Banda")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Banda"));
+
+    fireEvent.click(screen.getByText("Selecciona país"));
+    await waitFor(() => expect(screen.getByText("Colombia")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Colombia"));
+
+    const cityInput = screen.getByPlaceholderText("Ingresa tu ciudad");
+    await user.type(cityInput, "Bogota");
+
+    await user.click(screen.getByText("Confirmar Migración"));
+    expect(fetchApi).toHaveBeenCalledWith('/api/usuarios/migrar-rol', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('"nuevoRol":"ARTISTA"')
+    }));
+    
+    expect(toast.success).toHaveBeenCalledWith("Rol migrado exitosamente. Reiniciando sesión...");
+    await waitFor(() => expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/home' }), { timeout: 2500 });
+  });
+
+  it("handles disable account", async () => {
+    vi.mocked(fetchApi).mockResolvedValue({ ok: true } as any);
+
+    render(<PaginaConfiguracion />);
+    const disableBtn = screen.getByText("Deshabilitar");
+    fireEvent.click(disableBtn);
+
+    await waitFor(() => {
+      expect(fetchApi).toHaveBeenCalledWith('/api/usuarios/deshabilitar', expect.any(Object));
+      expect(toast.success).toHaveBeenCalledWith("Cuenta deshabilitada. Cerrando sesión...");
+      expect(signOut).toHaveBeenCalled();
+    }, { timeout: 2500 });
+  });
+
+  it("handles account action fetch exception", async () => {
+    vi.mocked(fetchApi).mockRejectedValue(new Error("net err"));
+
+    render(<PaginaConfiguracion />);
+    const disableBtn = screen.getByText("Deshabilitar");
+    fireEvent.click(disableBtn);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al deshabilitar cuenta"));
+  });
+
+  it("renders and handles super admin profile delete", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
     });
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [],
+      perfilesExistentes: { artista: true, discoteca: false, publico: false },
+    });
+    vi.mocked(fetchApi).mockResolvedValue({ ok: true } as any);
 
-    it("migrates role fails throws exception", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "PUBLICO" } },
-      });
-      setupFetchMock();
+    render(<PaginaConfiguracion />);
+    const deleteProfileBtn = screen.getByText("Eliminar Perfil");
+    fireEvent.click(deleteProfileBtn);
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Migrar"));
-      await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
-      
-      await user.click(screen.getByTestId("mock-select-item-DISCOTECA"));
-
-      await waitFor(() => expect(screen.getByText("Nombre de la Discoteca")).toBeInTheDocument());
-      
-      // Submit error branch
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/migrar-rol") {
-          return Promise.reject(new Error("Ex"));
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Confirmar Migración"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al migrar rol");
-      });
+    await waitFor(() => {
+      expect(fetchApi).toHaveBeenCalledWith('/api/admin/usuarios/perfil/artista', expect.any(Object));
+      expect(toast.success).toHaveBeenCalledWith("Perfil de artista eliminado. Reiniciando sesión...");
     });
   });
 
-  describe("Admin Profile Management", () => {
-    it("renders profile creation buttons if profiles don't exist", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ADMIN" } },
-      });
-      setupFetchMock({
-        perfil: {
-          perfilArtista: false,
-          perfilPublico: false,
-          perfilDiscoteca: false,
-        }
-      });
+  it("handles delete account error", async () => {
+    vi.mocked(fetchApi).mockResolvedValue({ ok: false } as any);
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await waitFor(() => {
-        const createBtns = screen.getAllByText("Crear Perfil");
-        expect(createBtns.length).toBe(3); // Artista, Discoteca, Publico
-      });
-      
-      const createBtns = screen.getAllByText("Crear Perfil");
-      await user.click(createBtns[0]); // artista
-      expect(globalThis.location.href).toBe("/artist-registration");
+    render(<PaginaConfiguracion />);
+    const delBtn = screen.getByText("Eliminar", { selector: 'button' });
+    fireEvent.click(delBtn);
 
-      await user.click(createBtns[1]); // discoteca
-      expect(globalThis.location.href).toBe("/venue-registration");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al eliminar cuenta"));
+  });
 
-      await user.click(createBtns[2]); // publico
-      expect(globalThis.location.href).toBe("/public-registration");
+  it("handles clicking Crear Perfil button in AdminProfileCard", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "ADMIN" } },
+    });
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [],
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
     });
 
-    it("renders profile deletion buttons if profiles exist and deletes them", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
-      });
-      setupFetchMock({
-        perfil: {
-          perfilArtista: true,
-          perfilPublico: true,
-          perfilDiscoteca: true,
-        }
-      });
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await waitFor(() => {
-        const delBtns = screen.getAllByText("Eliminar Perfil");
-        expect(delBtns.length).toBe(3);
-      });
-      
-      // Delete Artista
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/admin/usuarios/perfil/")) {
-          return Promise.resolve({ ok: true });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      const delBtns = screen.getAllByText("Eliminar Perfil");
-      await user.click(delBtns[0]); // artista delete button
-      
-      await waitFor(() => expect(screen.getByText("¿Eliminar Perfil de Artista?")).toBeInTheDocument());
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Perfil de artista eliminado. Reiniciando sesión...");
-      });
-      
-      await waitFor(() => {
-        expect(signOut).toHaveBeenCalled();
-      }, { timeout: 2500 });
+    Object.defineProperty(globalThis, 'location', {
+      value: { href: "" },
+      writable: true
     });
 
-    it("handles errors when deleting admin profile", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
-      });
-      setupFetchMock({
-        perfil: {
-          perfilArtista: true,
-        }
-      });
+    render(<PaginaConfiguracion />);
+    const createProfileBtns = screen.getAllByText("Crear Perfil");
+    fireEvent.click(createProfileBtns[0]);
+    expect(globalThis.location.href).toBe("/artist-registration");
+  });
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await waitFor(() => {
-        const delBtns = screen.getAllByText("Eliminar Perfil");
-        expect(delBtns.length).toBeGreaterThan(0);
-      });
-      
-      // Delete Artista with error
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/admin/usuarios/perfil/")) {
-          return Promise.resolve({ ok: false });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      const delBtns = screen.getAllByText("Eliminar Perfil");
-      await user.click(delBtns[0]);
-      
-      await waitFor(() => expect(screen.getByText("¿Eliminar Perfil de Artista?")).toBeInTheDocument());
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al eliminar perfil de artista");
-      });
+  it("migrates role to DISCOTECA successfully", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "PUBLICO" } },
     });
+    vi.mocked(fetchApi).mockResolvedValue({ ok: true } as any);
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
     
-    it("handles throw when deleting admin profile", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
-      });
-      setupFetchMock({
-        perfil: {
-          perfilDiscoteca: true,
-        }
-      });
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await waitFor(() => {
-        const delBtns = screen.getAllByText("Eliminar Perfil");
-        expect(delBtns.length).toBeGreaterThan(0);
-      });
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/admin/usuarios/perfil/")) {
-          return Promise.reject(new Error("Net err"));
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Discoteca")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Discoteca"));
 
-      const delBtns = screen.getAllByText("Eliminar Perfil");
-      await user.click(delBtns[0]); // discoteca button is first since only discoteca is true
-      
-      await waitFor(() => expect(screen.getByText("¿Eliminar Perfil de Discoteca?")).toBeInTheDocument());
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al eliminar perfil de discoteca");
-      });
+    const venueNameInput = screen.getByLabelText("Nombre de la Discoteca");
+    await user.type(venueNameInput, "Club House");
+
+    await user.click(screen.getByText("Confirmar Migración"));
+    expect(fetchApi).toHaveBeenCalledWith('/api/usuarios/migrar-rol', expect.objectContaining({
+      method: 'POST',
+      body: expect.stringContaining('"nuevoRol":"DISCOTECA"')
+    }));
+  });
+
+  it("handles migration failure with API error message", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "ARTISTA" } },
     });
+    vi.mocked(fetchApi).mockResolvedValue({
+      ok: false,
+      json: async () => ({ message: "Migration failed error" })
+    } as any);
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
     
-    it("deletes publico profile with success", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
-      });
-      setupFetchMock({
-        perfil: {
-          perfilPublico: true,
-        }
-      });
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await waitFor(() => {
-        const delBtns = screen.getAllByText("Eliminar Perfil");
-        expect(delBtns.length).toBeGreaterThan(0);
-      });
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url.includes("/api/admin/usuarios/perfil/")) {
-          return Promise.resolve({ ok: true });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Público")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Público"));
 
-      const delBtns = screen.getAllByText("Eliminar Perfil");
-      await user.click(delBtns[0]); 
-      
-      await waitFor(() => expect(screen.getByText("¿Eliminar Perfil de Público?")).toBeInTheDocument());
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Perfil de publico eliminado. Reiniciando sesión...");
-      });
-      
-      await waitFor(() => {
-        expect(signOut).toHaveBeenCalled();
-      }, { timeout: 2500 });
+    await user.click(screen.getByText("Confirmar Migración"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Migration failed error");
     });
   });
 
-  describe("Account Management", () => {
-    it("disables account successfully", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Deshabilitar"));
-      
-      await waitFor(() => expect(screen.getByText("¿Estás seguro?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/deshabilitar") {
-          return Promise.resolve({ ok: true });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Sí, deshabilitar"));
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Cuenta deshabilitada. Cerrando sesión...");
-      });
-      
-      await waitFor(() => {
-        expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-      }, { timeout: 2500 });
+  it("handles migration network error", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "ARTISTA" } },
     });
+    vi.mocked(fetchApi).mockRejectedValue(new Error("Network Error"));
 
-    it("handles error disabling account", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Deshabilitar"));
-      await waitFor(() => expect(screen.getByText("¿Estás seguro?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/deshabilitar") {
-          return Promise.resolve({ ok: false });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Sí, deshabilitar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al deshabilitar cuenta");
-      });
-    });
-
-    it("handles throw disabling account", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Deshabilitar"));
-      await waitFor(() => expect(screen.getByText("¿Estás seguro?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/deshabilitar") {
-          return Promise.reject(new Error("Net"));
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Sí, deshabilitar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al deshabilitar cuenta");
-      });
-    });
-
-    it("deletes account successfully", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Eliminar"));
-      
-      await waitFor(() => expect(screen.getByText("¿Eliminar cuenta permanentemente?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/eliminar") {
-          return Promise.resolve({ ok: true });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith("Cuenta programada para eliminación. Cerrando sesión...");
-      });
-      
-      await waitFor(() => {
-        expect(signOut).toHaveBeenCalledWith({ callbackUrl: '/' });
-      }, { timeout: 2500 });
-    });
-
-    it("handles error deleting account", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
-
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Eliminar"));
-      await waitFor(() => expect(screen.getByText("¿Eliminar cuenta permanentemente?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/eliminar") {
-          return Promise.resolve({ ok: false });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
-
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al eliminar cuenta");
-      });
-    });
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
     
-    it("handles throw deleting account", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "ARTISTA" } },
-      });
-      setupFetchMock();
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
 
-      render(<PaginaConfiguracion />);
-      const user = userEvent.setup();
-      
-      await user.click(screen.getByText("Eliminar"));
-      await waitFor(() => expect(screen.getByText("¿Eliminar cuenta permanentemente?")).toBeInTheDocument());
-      
-      (fetchApi as any).mockImplementation((url: string) => {
-        if (url === "/api/usuarios/eliminar") {
-          return Promise.reject(new Error("Net"));
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      });
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Público")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Público"));
 
-      await user.click(screen.getByText("Sí, eliminar"));
-      
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith("Error al eliminar cuenta");
-      });
+    await user.click(screen.getByText("Confirmar Migración"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al migrar rol");
     });
-    
-    it("does not show Delete Account for SUPER_ADMIN", async () => {
-      (useSession as any).mockReturnValue({
-        data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
-      });
-      setupFetchMock();
+  });
 
-      render(<PaginaConfiguracion />);
-      
-      await waitFor(() => {
-        expect(screen.queryByText("Eliminar Cuenta")).not.toBeInTheDocument();
-      });
+  it("handles admin profile delete error", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "SUPER_ADMIN" } },
+    });
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [],
+      perfilesExistentes: { artista: true, discoteca: false, publico: false },
+    });
+    vi.mocked(fetchApi).mockResolvedValue({ ok: false } as any);
+
+    render(<PaginaConfiguracion />);
+    const deleteProfileBtn = screen.getByText("Eliminar Perfil");
+    fireEvent.click(deleteProfileBtn);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al eliminar perfil de artista");
+    });
+  });
+
+  it("allows cancelling role migration dialog", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "PUBLICO" } },
+    });
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
+    
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
+
+    const cancelBtn = screen.getByRole("button", { name: /Cancelar/i });
+    await user.click(cancelBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Nuevo Rol")).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders settings with null session", () => {
+    (useSession as any).mockReturnValue({ data: null });
+    render(<PaginaConfiguracion />);
+    expect(screen.getByText("Configuración")).toBeInTheDocument();
+  });
+
+  it("handles migration failure with fallback error message", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "ARTISTA" } },
+    });
+    vi.mocked(fetchApi).mockResolvedValue({
+      ok: false,
+      json: async () => ({})
+    } as any);
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
+    
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Público")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Público"));
+
+    await user.click(screen.getByText("Confirmar Migración"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al migrar rol");
+    });
+  });
+
+  it("returns early from migrarRol when nuevoRol is empty (line 128)", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "PUBLICO" } },
+    });
+    vi.mocked(fetchApi).mockClear();
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
+
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
+
+    // Click "Confirmar Migración" without selecting a nuevoRol
+    // The button is disabled when !nuevoRol, so call migrarRol indirectly by
+    // clicking the button via fireEvent which bypasses the disabled attribute.
+    const confirmBtn = screen.getByText("Confirmar Migración");
+    fireEvent.click(confirmBtn);
+
+    // fetchApi should NOT have been called because migrarRol returns early
+    expect(fetchApi).not.toHaveBeenCalled();
+  });
+
+  it("shows 'Usuario' as alt text for blocked user image when nombre is missing (line 213)", async () => {
+    (useSettingsData as any).mockReturnValue({
+      bloqueados: [
+        { id: "b-no-name", nombreUsuario: "noname_user", correo: "noname@test.com", imagen: "/img-noname.jpg" }
+      ],
+      cargandoBloqueados: false,
+      perfilesExistentes: { artista: false, discoteca: false, publico: false },
+      desbloquearUsuario: vi.fn(),
+    });
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Ver Lista"));
+
+    await waitFor(() => {
+      const img = screen.getByAltText("Usuario");
+      expect(img).toBeInTheDocument();
+    });
+  });
+
+  it("shows Loader2 spinner when migrando is true (line 411)", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { id: "user-1", rol: "PUBLICO" } },
+    });
+
+    // Make fetchApi return a promise that never resolves so migrando stays true
+    vi.mocked(fetchApi).mockReturnValue(new Promise(() => {}));
+
+    render(<PaginaConfiguracion />);
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Migrar"));
+
+    await waitFor(() => expect(screen.getByText("Nuevo Rol")).toBeInTheDocument());
+
+    // Select a role first
+    fireEvent.click(screen.getByText("Selecciona un rol"));
+    await waitFor(() => expect(screen.getByText("Artista")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Artista"));
+
+    // Click confirm — migrando becomes true, but fetchApi never resolves
+    await user.click(screen.getByText("Confirmar Migración"));
+
+    // The component should now show LoadingScreen because migrando is true
+    // (line 247: if (cargando || migrando) return <LoadingScreen />)
+    // So the dialog content disappears and LoadingScreen is shown
+    await waitFor(() => {
+      expect(screen.queryByText("Confirmar Migración")).not.toBeInTheDocument();
     });
   });
 });

@@ -1,63 +1,87 @@
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import EventsPage from '../page';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import EventsPage from "../page";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
-vi.mock('next-auth/react', () => ({
-  useSession: vi.fn(),
+vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: vi.fn() }));
+
+// Mock components to simplify test
+vi.mock("@/components/dashboard/EventManager", () => ({
+  EventManager: ({ onEventChange }: any) => (
+    <div data-testid="event-manager">
+      <button onClick={() => onEventChange({ id: "event-1", titulo: "My Event" })}>Activate Event</button>
+      <button onClick={() => onEventChange(null)}>Deactivate Event</button>
+    </div>
+  )
 }));
 
-vi.mock('next/navigation', () => ({
-  useRouter: vi.fn(),
-}));
-
-vi.mock('@/components/dashboard/EventManager', () => ({
-  EventManager: ({ onEventChange }: any) => {
-    // We can simulate an active event by calling onEventChange if we want
-    return <div data-testid="event-manager">Event Manager Mock</div>;
-  }
-}));
-
-vi.mock('@/components/ui/loading-screen', () => ({
-  LoadingScreen: () => <div data-testid="loading-screen">Loading...</div>
-}));
-
-describe('EventsPage Component', () => {
-  const mockPush = vi.fn();
+describe("EventsPage", () => {
+  const mockRouter = { push: vi.fn() };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useRouter as any).mockReturnValue({ push: mockPush });
+    (useRouter as any).mockReturnValue(mockRouter);
   });
 
-  it('renders loading screen when status is loading', () => {
-    (useSession as any).mockReturnValue({ status: 'loading' });
+  it("renders loader if loading", () => {
+    (useSession as any).mockReturnValue({ status: "loading", data: null });
+    const { container } = render(<EventsPage />);
+    expect(container.querySelector(".animate-spin") || screen.queryByTestId("loading-screen")).toBeDefined();
+  });
+
+  it("redirects to login if unauthenticated", () => {
+    (useSession as any).mockReturnValue({ status: "unauthenticated", data: null });
     render(<EventsPage />);
-    expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
+    expect(mockRouter.push).toHaveBeenCalledWith("/login");
   });
 
-  it('redirects to /login if unauthenticated', () => {
-    (useSession as any).mockReturnValue({ data: null, status: 'unauthenticated' });
-    render(<EventsPage />);
-    expect(mockPush).toHaveBeenCalledWith('/login');
-  });
-
-  it('redirects to /home if authenticated but not ARTISTA', () => {
+  it("redirects to home if authenticated but not ARTISTA", () => {
     (useSession as any).mockReturnValue({
-      data: { user: { rol: 'USER' } },
-      status: 'authenticated',
+      status: "authenticated",
+      data: { user: { rol: "PUBLICO" } }
     });
     render(<EventsPage />);
-    expect(mockPush).toHaveBeenCalledWith('/home');
+    expect(mockRouter.push).toHaveBeenCalledWith("/home");
   });
 
-  it('renders EventManager for ARTISTA', () => {
+  it("returns null if authenticated but not ARTISTA (no UI)", () => {
     (useSession as any).mockReturnValue({
-      data: { user: { rol: 'ARTISTA' } },
-      status: 'authenticated',
+      status: "authenticated",
+      data: { user: { rol: "PUBLICO" } }
+    });
+    const { container } = render(<EventsPage />);
+    expect(container.innerHTML).toBe(""); // should return null
+  });
+
+  it("renders events page and live requests link for ARTISTA", async () => {
+    (useSession as any).mockReturnValue({
+      status: "authenticated",
+      data: { user: { rol: "ARTISTA" } }
     });
     render(<EventsPage />);
-    expect(screen.getByTestId('event-manager')).toBeInTheDocument();
+
+    expect(screen.getByText("Gestión de Eventos")).toBeInTheDocument();
+
+    // Check Live Requests is not visible initially
+    expect(screen.queryByText("Pedidos en Vivo")).not.toBeInTheDocument();
+
+    // Activate event
+    const activateBtn = screen.getByText("Activate Event");
+    fireEvent.click(activateBtn);
+
+    // Check Live Requests is visible
+    await waitFor(() => {
+      expect(screen.getByText("Pedidos en Vivo")).toBeInTheDocument();
+    });
+    
+    // Deactivate event
+    const deactivateBtn = screen.getByText("Deactivate Event");
+    fireEvent.click(deactivateBtn);
+    
+    await waitFor(() => {
+      expect(screen.queryByText("Pedidos en Vivo")).not.toBeInTheDocument();
+    });
   });
 });

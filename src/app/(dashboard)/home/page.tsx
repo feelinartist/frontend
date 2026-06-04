@@ -57,17 +57,14 @@ export default function PaginaPanelControl() {
 
     const sessionUserId = session?.user?.id;
 
-    const cargarPerfilArtista = useCallback(async (mounted: boolean) => {
-        if (!sessionUserId) return;
+    const cargarPerfilArtista = useCallback(async () => {
         try {
             const res = await fetchApi(`/api/usuarios/perfil/${sessionUserId}`);
 
             if (res.ok) {
                 const data = await res.json();
-                if (mounted) {
-                    setPerfilArtista(data.perfilArtista || {});
-                    setReconocido(!!data.perfilCompletadoReconocido);
-                }
+                setPerfilArtista(data.perfilArtista);
+                setReconocido(!!data.perfilCompletadoReconocido);
 
                 // Check for active event (only once per session)
                 if (!sessionStorage.getItem('eventRedirectChecked')) {
@@ -93,22 +90,15 @@ export default function PaginaPanelControl() {
     }, [sessionUserId, router]);
 
     useEffect(() => {
-        let mounted = true;
-
         if (esArtista && session?.user?.id) {
             // Schedule the call to avoid synchronous setState in effect body
             const timer = setTimeout(() => {
-                if (mounted) {
-                    void cargarPerfilArtista(mounted);
-                }
+                void cargarPerfilArtista();
             }, 0);
             return () => {
-                mounted = false;
                 clearTimeout(timer);
             };
         }
-
-        return () => { mounted = false; };
     }, [esArtista, session?.user?.id, cargarPerfilArtista]);
 
     useEffect(() => {

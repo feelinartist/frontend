@@ -83,6 +83,16 @@ describe("Navbar Component", () => {
         expect(screen.queryByTestId("mock-avatar")).not.toBeInTheDocument();
     });
 
+
+
+    it('renders avatar fallback correctly if user has no name', () => {
+        (useSession as any).mockReturnValue({
+            data: { user: { email: 'test@example.com' } }, // no name
+        });
+        render(<Navbar />);
+        expect(screen.getByText('U')).toBeInTheDocument();
+    });
+
     it("renders user information and navigation items for general logged in users", () => {
         (useSession as any).mockReturnValue({
             data: {

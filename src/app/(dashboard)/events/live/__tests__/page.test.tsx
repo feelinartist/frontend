@@ -1,39 +1,46 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import LiveRequestsPage from '../page';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { fetchApi } from '@/lib/api';
+import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import LiveRequestsPage from "../page";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { fetchApi } from "@/lib/api";
+import { toast } from "sonner";
 
-vi.mock('next-auth/react', () => ({
+vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock('next/navigation', () => ({
+vi.mock("next/navigation", () => ({
   useRouter: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({
+vi.mock("@/lib/api", () => ({
   fetchApi: vi.fn(),
 }));
 
-vi.mock('@/components/dashboard/LiveRequestsFeed', () => ({
-  LiveRequestsFeed: () => <div data-testid="live-requests-feed">Feed Mock</div>
+vi.mock("sonner", () => ({
+  toast: {
+    error: vi.fn(),
+  },
 }));
 
-vi.mock('@/components/ui/loading-screen', () => ({
-  LoadingScreen: () => <div data-testid="loading-screen">Loading...</div>
+vi.mock("@/components/ui/loading-screen", () => ({
+  LoadingScreen: () => <div data-testid="loading-screen" />,
 }));
 
-vi.mock('@/components/ui/back-button', () => ({
-  BackButton: () => <div data-testid="back-button">Back</div>
+vi.mock("@/components/ui/back-button", () => ({
+  BackButton: () => <button data-testid="back-button">Back</button>,
 }));
 
-vi.mock('@/components/animated-background', () => ({
-  AnimatedBackground: () => <div data-testid="animated-bg">BG</div>
+vi.mock("@/components/animated-background", () => ({
+  AnimatedBackground: () => <div data-testid="animated-background" />,
 }));
 
-describe('LiveRequestsPage Component', () => {
+vi.mock("@/components/dashboard/LiveRequestsFeed", () => ({
+  LiveRequestsFeed: ({ eventoId }: any) => <div data-testid="feed">Feed for {eventoId}</div>,
+}));
+
+describe("LiveRequestsPage", () => {
   const mockPush = vi.fn();
 
   beforeEach(() => {
@@ -41,96 +48,89 @@ describe('LiveRequestsPage Component', () => {
     (useRouter as any).mockReturnValue({ push: mockPush });
   });
 
-  it('renders loading screen initially', () => {
-    (useSession as any).mockReturnValue({ status: 'loading' });
+  it("shows loading screen", () => {
+    (useSession as any).mockReturnValue({ status: "loading" });
     render(<LiveRequestsPage />);
-    expect(screen.getByTestId('loading-screen')).toBeInTheDocument();
+    expect(screen.getByTestId("loading-screen")).toBeInTheDocument();
   });
 
-  it('redirects to /login if unauthenticated', async () => {
-    (useSession as any).mockReturnValue({ data: null, status: 'unauthenticated' });
+  it("redirects unauthenticated users", () => {
+    (useSession as any).mockReturnValue({ status: "unauthenticated" });
     render(<LiveRequestsPage />);
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/login');
-    });
+    expect(mockPush).toHaveBeenCalledWith("/login");
   });
 
-  it('redirects to /home if not ARTISTA', async () => {
-    (useSession as any).mockReturnValue({
-      data: { user: { rol: 'USER' } },
-      status: 'authenticated',
-    });
+  it("redirects authenticated but non-ARTISTA users", () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { rol: "USER" } } });
     render(<LiveRequestsPage />);
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/home');
-    });
+    expect(mockPush).toHaveBeenCalledWith("/home");
   });
 
-  it('redirects to /events if fetch throws an error', async () => {
-    (useSession as any).mockReturnValue({
-      data: { user: { rol: 'ARTISTA', id: '1' } },
-      status: 'authenticated',
-    });
-    (fetchApi as any).mockRejectedValueOnce(new Error('Network Fail'));
-
-    await act(async () => {
-      render(<LiveRequestsPage />);
-    });
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/events');
-    });
-  });
-
-  it('redirects to /events if no active event is found', async () => {
-    (useSession as any).mockReturnValue({
-      data: { user: { rol: 'ARTISTA', id: '1' } },
-      status: 'authenticated',
-    });
-    (fetchApi as any).mockResolvedValueOnce({ ok: true, json: async () => null });
-
-    await act(async () => {
-      render(<LiveRequestsPage />);
-    });
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/events');
-    });
-  });
-
-  it('redirects to /events if fetch returns not ok', async () => {
-    (useSession as any).mockReturnValue({
-      data: { user: { rol: 'ARTISTA', id: '1' } },
-      status: 'authenticated',
-    });
-    (fetchApi as any).mockResolvedValueOnce({ ok: false });
-
-    await act(async () => {
-      render(<LiveRequestsPage />);
-    });
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith('/events');
-    });
-  });
-
-  it('renders LiveRequestsFeed if active event is found', async () => {
-    (useSession as any).mockReturnValue({
-      data: { user: { rol: 'ARTISTA', id: '1' } },
-      status: 'authenticated',
-    });
+  it("fetches active event and renders feed", async () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { id: "artist-1", rol: "ARTISTA" } } });
     (fetchApi as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ id: 'evt-1', titulo: 'Concierto' }),
+      json: async () => ({ id: "event-1", titulo: "Live Event" }),
     });
 
-    await act(async () => {
-      render(<LiveRequestsPage />);
-    });
+    render(<LiveRequestsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('live-requests-feed')).toBeInTheDocument();
-      expect(screen.getByText('Concierto')).toBeInTheDocument();
+      expect(screen.queryByTestId("loading-screen")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Pedidos en Vivo")).toBeInTheDocument();
+    expect(screen.getByText("Live Event")).toBeInTheDocument();
+    expect(screen.getByTestId("feed")).toHaveTextContent("Feed for event-1");
+  });
+
+  it("handles fetch active event null data", async () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { id: "artist-1", rol: "ARTISTA" } } });
+    (fetchApi as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => null,
+    });
+
+    render(<LiveRequestsPage />);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("No hay evento activo");
+      expect(mockPush).toHaveBeenCalledWith("/events");
+    });
+  });
+
+  it("handles fetch active event not ok", async () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { id: "artist-1", rol: "ARTISTA" } } });
+    (fetchApi as any).mockResolvedValueOnce({
+      ok: false,
+    });
+
+    render(<LiveRequestsPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/events");
+    });
+  });
+
+  it("handles fetch active event throw error", async () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { id: "artist-1", rol: "ARTISTA" } } });
+    (fetchApi as any).mockRejectedValueOnce(new Error("Network Error"));
+
+    render(<LiveRequestsPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/events");
+    });
+  });
+
+  it("does not fetch if missing artistaId", async () => {
+    (useSession as any).mockReturnValue({ status: "authenticated", data: { user: { rol: "ARTISTA" } } }); // No id
+    
+    render(<LiveRequestsPage />);
+    
+    await waitFor(() => {
+      expect(fetchApi).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("loading-screen")).not.toBeInTheDocument();
     });
   });
 });

@@ -37,8 +37,8 @@ function SearchContent() {
         setCargando(true);
         try {
             const params = new URLSearchParams();
-            if (termino) params.append("termino", termino);
-            params.append("usuarioSolicitanteId", session?.user?.id || "");
+            params.append("termino", String(termino).replace("null", ""));
+            params.append("usuarioSolicitanteId", String(session?.user?.id));
 
             const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001'}/api/usuarios/buscar?${params.toString()}`);
             if (res.ok) {

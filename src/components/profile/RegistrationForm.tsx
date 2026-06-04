@@ -11,7 +11,7 @@ import { NameAndUsernameSection } from "@/components/profile/NameAndUsernameSect
 import { ProfileDatePicker } from "@/components/profile/ProfileDatePicker";
 import { ProfileFormWrapper } from '@/components/profile/ProfileFormWrapper';
 import { useProfileFormControls } from '@/components/profile/useProfileFormControls';
-import { fetchApi } from "@/lib/api";
+import { fetchApi, parseJsonSafe } from "@/lib/api";
 import { toast } from "sonner";
 
 interface RegistrationFormData {
@@ -66,7 +66,7 @@ export function RegistrationForm({
         }
 
         if (session?.user?.name && !formData.nombre) {
-            setFormData(prev => ({ ...prev, nombre: session.user.name || "" }));
+            setFormData(prev => ({ ...prev, nombre: session.user.name as string }));
         }
 
         const rolUsuario = session?.user?.rol;
@@ -99,15 +99,15 @@ export function RegistrationForm({
             });
 
             if (response.ok) {
-                const data = await response.json();
+                const data = await parseJsonSafe<{ token?: string; rol?: { nombre: string } }>(response);
                 toast.success("¡Registro completado con éxito!");
 
                 const esAdmin = session?.user?.rol === 'SUPER_ADMIN' || session?.user?.rol === 'ADMIN';
                 if (update) {
                     await update({
-                        rol: esAdmin ? session.user.rol : (data.rol?.nombre || payload['rol']),
+                        rol: esAdmin ? session.user.rol : (data?.rol?.nombre || payload['rol']),
                         name: formData.nombre,
-                        accessToken: data.token,
+                        accessToken: data?.token || session?.accessToken,
                     });
                 }
 
@@ -144,6 +144,7 @@ export function RegistrationForm({
                         usernameValue={formData.nombreUsuario}
                         onUsernameChange={(value) => setFormData({ ...formData, nombreUsuario: value })}
                         onStatusChange={setUsuarioVerificado}
+                        usuarioId={session?.user?.id}
                     />
 
                     {showFoundationDate && (

@@ -54,7 +54,7 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
     const { data: availableNetworks = [] } = useConfigList<RedSocial>("/api/config/redes-sociales");
 
     useEffect(() => {
-        if ((availableNetworks?.length ?? 0) > 0) {
+        if (availableNetworks && availableNetworks.length > 0) {
             const entries: Record<string, SocialMediaEntry> = {};
 
             availableNetworks.forEach(network => {
@@ -139,17 +139,16 @@ export function SocialMediaForm({ redesSociales, usuarioId, onSave, onLoadingCha
                 }),
             });
 
-            if (!response.ok) {
-                const errorBody = await parseJsonSafe<{ message?: string }>(response);
-                throw new Error(errorBody?.message || "Error al guardar");
+            if (response.ok) {
+                toast.success("Redes sociales actualizadas correctamente");
+                onSave();
+            } else {
+                const resData = await parseJsonSafe<{ message?: string }>(response);
+                throw new Error(resData?.message || "Error al guardar");
             }
-
-            toast.success("Redes sociales actualizadas correctamente");
-            onSave();
-        } catch (error: unknown) {
-            console.error("Error:", error);
-            const errorMessage = error instanceof Error ? error.message : "Error al actualizar redes sociales";
-            toast.error(errorMessage);
+        } catch (err: unknown) {
+            console.error("Error en submit:", err);
+            toast.error(err instanceof Error ? err.message : "Error al actualizar redes sociales");
         } finally {
             setGlobalLoading(false);
         }

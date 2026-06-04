@@ -65,7 +65,7 @@ describe("UsernameInput Component", () => {
             json: async () => ({ disponible: true }),
         });
 
-        render(<UsernameInput {...defaultProps} value="newuser" />);
+        render(<UsernameInput {...defaultProps} value="newuser" usuarioId="user-1" />);
         const input = screen.getByPlaceholderText("usuario");
 
         fireEvent.blur(input);
@@ -75,6 +75,7 @@ describe("UsernameInput Component", () => {
                 "/api/usuarios/verificar-nombre-usuario",
                 expect.objectContaining({
                     method: "POST",
+                    body: JSON.stringify({ nombreUsuario: "newuser", usuarioId: "user-1" }),
                 })
             );
         });
@@ -163,4 +164,3 @@ describe("UsernameInput Component", () => {
         });
     });
 });
-

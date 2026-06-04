@@ -19,6 +19,7 @@ type ProfileFormHeaderProps = {
   readonly usernameValue: string;
   readonly onUsernameChange: (value: string) => void;
   readonly onStatusChange: (value: boolean) => void;
+  readonly usuarioId?: string;
 };
 
 export function ProfileFormHeader({
@@ -37,6 +38,7 @@ export function ProfileFormHeader({
   usernameValue,
   onUsernameChange,
   onStatusChange,
+  usuarioId,
 }: ProfileFormHeaderProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -49,6 +51,7 @@ export function ProfileFormHeader({
         usernameValue={usernameValue}
         onUsernameChange={onUsernameChange}
         onStatusChange={onStatusChange}
+        usuarioId={usuarioId}
       />
 
       <div className="space-y-1.5 md:col-span-2">

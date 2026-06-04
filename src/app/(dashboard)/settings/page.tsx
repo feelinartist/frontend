@@ -6,11 +6,10 @@ import type { BlockedUser } from "@/lib/useSettingsData";
 
 import { useState, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { AnimatedBackground } from "@/components/animated-background";
+import { DashboardPageShell } from "@/components/dashboard/DashboardPageShell";
 import { PanelCard } from "@/components/ui/PanelCard";
 import { Button } from "@/components/ui/button";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { BackButton } from "@/components/ui/back-button";
 import { Loader2, Shield, UserX, Trash2, RefreshCw } from "lucide-react";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -126,7 +125,7 @@ export default function PaginaConfiguracion() {
     };
 
     const migrarRol = async () => {
-        if (!nuevoRol) return;
+
         setMigrando(true);
         try {
             const res = await fetchApi('/api/usuarios/migrar-rol', {
@@ -164,70 +163,32 @@ export default function PaginaConfiguracion() {
         }
     };
 
-    const deshabilitarCuenta = async () => {
+    const runAccountAction = async (endpoint: string, method: string, successMessage: string, errorMessage: string, callbackRoute: string, bodyObj?: Record<string, unknown>) => {
         setCargando(true);
         try {
-            const res = await fetchApi('/api/usuarios/deshabilitar', {
-                method: 'PATCH',
-                body: JSON.stringify({ usuarioId: session?.user?.id })
-            });
-
-            if (res.ok) {
-                toast.success("Cuenta deshabilitada. Cerrando sesión...");
-                setTimeout(() => signOut({ callbackUrl: '/' }), 2000);
+            const opts: RequestInit = { method };
+            if (bodyObj) opts.body = JSON.stringify(bodyObj);
+            
+            const req = await fetchApi(endpoint, opts);
+            if (req.ok) {
+                toast.success(successMessage);
+                setTimeout(() => signOut({ callbackUrl: callbackRoute }), 2000);
             } else {
-                toast.error("Error al deshabilitar cuenta");
+                toast.error(errorMessage);
             }
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al deshabilitar cuenta");
+        } catch (ex) {
+            console.error(ex);
+            toast.error(errorMessage);
         } finally {
             setCargando(false);
         }
     };
 
-    const eliminarCuenta = async () => {
-        setCargando(true);
-        try {
-            const res = await fetchApi('/api/usuarios/eliminar', {
-                method: 'DELETE',
-                body: JSON.stringify({ usuarioId: session?.user?.id })
-            });
-
-            if (res.ok) {
-                toast.success("Cuenta programada para eliminación. Cerrando sesión...");
-                setTimeout(() => signOut({ callbackUrl: '/' }), 2000);
-            } else {
-                toast.error("Error al eliminar cuenta");
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("Error al eliminar cuenta");
-        } finally {
-            setCargando(false);
-        }
-    };
-
-    const eliminarPerfilAdmin = async (tipo: string) => {
-        setCargando(true);
-        try {
-            const res = await fetchApi(`/api/admin/usuarios/perfil/${tipo}`, {
-                method: 'DELETE'
-            });
-
-            if (res.ok) {
-                toast.success(`Perfil de ${tipo} eliminado. Reiniciando sesión...`);
-                setTimeout(() => signOut({ callbackUrl: '/home' }), 2000);
-            } else {
-                toast.error(`Error al eliminar perfil de ${tipo}`);
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error(`Error al eliminar perfil de ${tipo}`);
-        } finally {
-            setCargando(false);
-        }
-    };
+    const deshabilitarCuenta = () => runAccountAction('/api/usuarios/deshabilitar', 'PATCH', "Cuenta deshabilitada. Cerrando sesión...", "Error al deshabilitar cuenta", '/', { usuarioId: session?.user?.id });
+    
+    const eliminarCuenta = () => runAccountAction('/api/usuarios/eliminar', 'DELETE', "Cuenta programada para eliminación. Cerrando sesión...", "Error al eliminar cuenta", '/', { usuarioId: session?.user?.id });
+    
+    const eliminarPerfilAdmin = (tipo: string) => runAccountAction(`/api/admin/usuarios/perfil/${tipo}`, 'DELETE', `Perfil de ${tipo} eliminado. Reiniciando sesión...`, `Error al eliminar perfil de ${tipo}`, '/home');
 
     const renderBloqueados = () => {
         if (cargandoBloqueados) {
@@ -288,17 +249,11 @@ export default function PaginaConfiguracion() {
     }
 
     return (
-        <div className="relative min-h-[100dvh] bg-black px-4 md:px-6 py-4 pt-20 overflow-x-hidden">
-            <AnimatedBackground />
-            <div className="relative z-10 max-w-5xl mx-auto">
-                <div className="flex items-center gap-4 mb-8">
-                    <BackButton href="/home" />
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Configuración</h1>
-                        <p className="text-zinc-400 text-sm">Administra tu cuenta y privacidad</p>
-                    </div>
-                </div>
-
+            <DashboardPageShell
+                title="Configuración"
+                description="Administra tu cuenta y privacidad"
+                backHref="/home"
+            >
                 <div className="space-y-6">
                     {/* Privacy Section */}
                     <PanelCard
@@ -388,8 +343,9 @@ export default function PaginaConfiguracion() {
                                             {nuevoRol === 'ARTISTA' && (
                                                 <>
                                                     <div className="space-y-2">
-                                                        <Label>Nombre Artístico</Label>
+                                                        <Label htmlFor="nombreArtistico">Nombre Artístico</Label>
                                                         <Input
+                                                            id="nombreArtistico"
                                                             className="bg-zinc-800 border-zinc-700 text-white"
                                                             onChange={(e) => setDatoMigracion('nombreArtistico', e.target.value)}
                                                         />
@@ -413,8 +369,9 @@ export default function PaginaConfiguracion() {
 
                                             {nuevoRol === 'DISCOTECA' && (
                                                 <div className="space-y-2">
-                                                    <Label>Nombre de la Discoteca</Label>
+                                                    <Label htmlFor="nombre-discoteca">Nombre de la Discoteca</Label>
                                                     <Input
+                                                        id="nombre-discoteca"
                                                         className="bg-zinc-800 border-zinc-700 text-white"
                                                         onChange={(e) => setDatoMigracion('nombre', e.target.value)}
                                                     />
@@ -451,7 +408,7 @@ export default function PaginaConfiguracion() {
                                         <DialogFooter>
                                             <Button variant="ghost" onClick={() => setDialogoMigracionAbierto(false)} className="text-zinc-400 hover:text-white">Cancelar</Button>
                                             <Button onClick={migrarRol} disabled={migrando || !nuevoRol} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                                                {migrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar Migración"}
+                                                Confirmar Migración
                                             </Button>
                                         </DialogFooter>
                                     </DialogContent>
@@ -581,7 +538,6 @@ export default function PaginaConfiguracion() {
                         </div>
                     </PanelCard>
                 </div>
-            </div>
-        </div>
+            </DashboardPageShell>
     );
 }

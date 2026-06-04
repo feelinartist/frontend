@@ -9,6 +9,7 @@ interface UsernameInputProps {
     readonly value: string;
     readonly onChange: (value: string) => void;
     readonly onStatusChange: (isValid: boolean) => void;
+    readonly usuarioId?: string;
     readonly currentUsername?: string; // To allow keeping the same username if editing
     readonly className?: string;
 }
@@ -17,6 +18,7 @@ export function UsernameInput({
     value,
     onChange,
     onStatusChange,
+    usuarioId,
     currentUsername,
     className
 }: UsernameInputProps) {
@@ -48,8 +50,10 @@ export function UsernameInput({
 
         // If it's the same as current, it's valid (unless empty, but that's handled above)
         if (value === currentUsername?.toLowerCase()) {
-            setIsValid(false);
+            // If the user didn't change their username, keep it marked as valid.
+            setIsValid(true);
             setError("");
+            setSuggestions([]);
             onStatusChange(true);
             return;
         }
@@ -65,7 +69,7 @@ export function UsernameInput({
         try {
             const response = await fetchApi('/api/usuarios/verificar-nombre-usuario', {
                 method: 'POST',
-                body: JSON.stringify({ nombreUsuario: value })
+                body: JSON.stringify({ nombreUsuario: value, usuarioId })
             });
 
             if (!response.ok) {

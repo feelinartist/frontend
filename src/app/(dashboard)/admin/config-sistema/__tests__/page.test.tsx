@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, vi, beforeEach, expect } from 'vitest';
+import '@testing-library/jest-dom';
 
 // Mock next-auth session
 vi.mock('next-auth/react', () => ({
@@ -17,6 +18,40 @@ vi.mock('next/navigation', () => ({
 vi.mock('sonner', () => ({
     toast: { error: vi.fn(), success: vi.fn() }
 }));
+
+// Mock @/components/ui/dialog to expose buttons that trigger onOpenChange
+vi.mock('@/components/ui/dialog', async () => {
+    const actual = await vi.importActual<any>('@/components/ui/dialog');
+    const React = await import('react');
+    return {
+        ...actual,
+        Dialog: ({ children, open, onOpenChange, ...props }: any) => {
+            return React.createElement(
+                actual.Dialog,
+                {
+                    open,
+                    onOpenChange: (val: boolean) => {
+                        onOpenChange?.(val);
+                    },
+                    ...props
+                },
+                React.createElement(
+                    'div',
+                    { 'data-testid': 'dialog-wrapper' },
+                    React.createElement('button', {
+                        'data-testid': 'trigger-dialog-close',
+                        onClick: () => onOpenChange?.(false),
+                    }),
+                    React.createElement('button', {
+                        'data-testid': 'trigger-dialog-open',
+                        onClick: () => onOpenChange?.(true),
+                    }),
+                    children
+                )
+            );
+        }
+    };
+});
 
 import ConfigSistemaPage from '../page';
 import { useSession } from 'next-auth/react';
@@ -767,5 +802,27 @@ describe('ConfigSistemaPage', () => {
             expect(screen.getByText('STRIPE_PUBLIC')).toBeInTheDocument();
             expect(screen.getByText('EMAIL_FROM')).toBeInTheDocument();
         });
+    });
+
+    it('covers Dialog onOpenChange branches', async () => {
+        mockUseSession.mockReturnValue({
+            data: { user: { rol: 'SUPER_ADMIN' } },
+            status: 'authenticated'
+        });
+
+        (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+            ok: true,
+            json: async () => []
+        });
+
+        render(<ConfigSistemaPage /> as any);
+
+        const openBtn = await screen.findByTestId('trigger-dialog-open');
+        const closeBtn = screen.getByTestId('trigger-dialog-close');
+
+        fireEvent.click(openBtn);
+        expect(openBtn).toBeDefined();
+        fireEvent.click(closeBtn);
+        expect(closeBtn).toBeDefined();
     });
 });

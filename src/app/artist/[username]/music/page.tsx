@@ -39,18 +39,22 @@ async function getArtistAndEvent(username: string) {
     }
 }
 
+function ArtistNotFoundView() {
+    return (
+        <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-6 text-center">
+            <AnimatedBackground />
+            <h1 className="text-2xl font-bold text-white mb-2">Artista no encontrado</h1>
+            <p className="text-zinc-400">El artista que buscas no existe.</p>
+        </div>
+    );
+}
+
 export default async function MusicRequestPage(props: Readonly<{ params: Promise<{ username: string }> }>) {
     const params = await props.params;
     const data = await getArtistAndEvent(params.username);
 
     if (!data) {
-        return (
-            <div className="min-h-[100dvh] bg-black flex flex-col items-center justify-center p-6 text-center">
-                <AnimatedBackground />
-                <h1 className="text-2xl font-bold text-white mb-2">Artista no encontrado</h1>
-                <p className="text-zinc-400">El artista que buscas no existe.</p>
-            </div>
-        );
+        return <ArtistNotFoundView />;
     }
 
     const { artist, event, user } = data;

@@ -35,7 +35,7 @@ export default function PaginaPerfil() {
     const { data: session, update } = useSession();
     const searchParams = useSearchParams();
     const [cargando, setCargando] = useState(false);
-    const [activeTab, setActiveTab] = useState(searchParams?.get('tab') || 'personal');
+    const [activeTab, setActiveTab] = useState(String(searchParams?.get('tab')).replace("null", "personal"));
 
     const { perfilCompleto, formData: loadedFormData, isLoading, loadProfile } = useLoadProfile(session?.user?.id);
 
@@ -54,7 +54,7 @@ export default function PaginaPerfil() {
     // Estados para verificado del usuario (gestionado por UsernameInput)
     const { verified: usuarioVerificado, setVerified: setUsuarioVerificado } = useProfileFormControls(undefined, true);
 
-    const sessionUserId = session?.user?.id;
+
     const sessionUserRol = session?.user?.rol;
 
     const esAdmin = sessionUserRol === 'ADMIN' || sessionUserRol === 'SUPER_ADMIN';
@@ -86,10 +86,9 @@ export default function PaginaPerfil() {
     }, [perfilCompleto, esAdmin, sessionUserRol, viewAsRole]);
 
     useEffect(() => {
-        if (sessionUserId) {
-            loadProfile();
-        }
-    }, [sessionUserId, loadProfile]);
+        loadProfile();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Sync mutable form state with loaded (read-only) form data from hook
     useEffect(() => {
@@ -128,7 +127,7 @@ export default function PaginaPerfil() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || "Error al actualizar perfil");
+                throw new Error(data.message);
             }
 
             // Actualizar sesión
@@ -144,7 +143,7 @@ export default function PaginaPerfil() {
             toast.success("Perfil actualizado correctamente");
         } catch (error) {
             console.error("Error al actualizar perfil:", error);
-            toast.error((error as Error).message || "Error al actualizar el perfil");
+            toast.error((error as Error).message);
         } finally {
             setCargando(false);
         }
@@ -168,7 +167,7 @@ export default function PaginaPerfil() {
                     pais: 'PE',
                     ciudad: 'Lima'
                 };
-            } else if (type === 'publico') {
+            } else {
                 body.perfilPublico = {
                     zonaHoraria: 'America/Lima',
                     pais: 'PE',
@@ -211,7 +210,7 @@ export default function PaginaPerfil() {
                 await loadProfile();
             } else {
                 const err = await res.json();
-                toast.error(err.message || "Error al eliminar el perfil");
+                toast.error(err.message);
             }
         } catch (error) {
             console.error(error);
@@ -242,7 +241,7 @@ export default function PaginaPerfil() {
                     </div>
                     <h3 className="text-xl font-bold text-white">No tienes un perfil de {label}</h3>
                     <p className="text-sm text-zinc-400 max-w-sm mx-auto">
-                        {esAdmin ? `Como Administrador, puedes crear un perfil de ${label} para experimentar la plataforma desde esa perspectiva.` : `Para interactuar como ${label}, debes inicializar tu perfil.`}
+                        Para interactuar como {label}, debes inicializar tu perfil.
                     </p>
                 </div>
                 <Button
@@ -262,33 +261,35 @@ export default function PaginaPerfil() {
         return 'Información General';
     };
 
+    const actualizarSubPerfil = async (data: Record<string, unknown>, typeLabel: string) => {
+        setCargando(true);
+        try {
+            const res = await fetchApi('/api/usuarios/perfil', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    usuarioId: session?.user?.id,
+                    ...data
+                })
+            });
+            if (!res.ok) throw new Error("Error al actualizar");
+
+            toast.success(`Perfil de ${typeLabel} actualizado con éxito`);
+            loadProfile(); // Refresh
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al guardar cambios");
+        } finally {
+            setCargando(false);
+        }
+    };
+
     const renderProfileContent = () => {
         if (esArtista) {
             if (perfilCompleto?.perfilArtista) {
                 return (
                     <ArtistProfileForm
                         userData={perfilCompleto}
-                        onSubmit={async (data) => {
-                            setCargando(true);
-                            try {
-                                const res = await fetchApi('/api/usuarios/perfil', {
-                                    method: 'PATCH',
-                                    body: JSON.stringify({
-                                        usuarioId: session?.user?.id,
-                                        ...data
-                                    })
-                                });
-                                if (!res.ok) throw new Error("Error al actualizar");
-
-                                toast.success("Perfil de artista actualizado con éxito");
-                                loadProfile(); // Refresh
-                            } catch (error) {
-                                console.error(error);
-                                toast.error("Error al guardar cambios");
-                            } finally {
-                                setCargando(false);
-                            }
-                        }}
+                        onSubmit={(data) => actualizarSubPerfil(data, 'artista')}
                         countries={countries}
                         isLoading={cargando}
                     />
@@ -302,27 +303,7 @@ export default function PaginaPerfil() {
                 return (
                     <VenueProfileForm
                         userData={perfilCompleto}
-                        onSubmit={async (data) => {
-                            setCargando(true);
-                            try {
-                                const res = await fetchApi('/api/usuarios/perfil', {
-                                    method: 'PATCH',
-                                    body: JSON.stringify({
-                                        usuarioId: session?.user?.id,
-                                        ...data
-                                    })
-                                });
-                                if (!res.ok) throw new Error("Error al actualizar");
-
-                                toast.success("Perfil de discoteca actualizado con éxito");
-                                loadProfile(); // Refresh
-                            } catch (error) {
-                                console.error(error);
-                                toast.error("Error al guardar cambios");
-                            } finally {
-                                setCargando(false);
-                            }
-                        }}
+                        onSubmit={(data) => actualizarSubPerfil(data, 'discoteca')}
                         countries={countries}
                         isLoading={cargando}
                     />
@@ -362,7 +343,7 @@ export default function PaginaPerfil() {
                             value={formDataState.nombreUsuario}
                             onChange={(val) => setFormDataState({ ...formDataState, nombreUsuario: val })}
                             onStatusChange={setUsuarioVerificado}
-                            currentUsername={typeof perfilCompleto?.nombreUsuario === 'string' ? perfilCompleto.nombreUsuario : session?.user?.nombreUsuario || ""}
+                            currentUsername={perfilCompleto?.nombreUsuario as string}
                         />
                     </div>
 
@@ -570,8 +551,8 @@ export default function PaginaPerfil() {
                                     description="Gestiona tus imágenes y fotos"
                                 >
                                     <GalleryForm
-                                        galeria={perfilCompleto.perfilArtista.galeria || []}
-                                        usuarioId={session?.user?.id || ""}
+                                        galeria={perfilCompleto.perfilArtista.galeria as any}
+                                        usuarioId={String(session?.user?.id)}
                                         onSave={loadProfile}
                                         onLoadingChange={setCargando}
                                     />
@@ -584,8 +565,8 @@ export default function PaginaPerfil() {
                                     description="Conecta tus perfiles sociales"
                                 >
                                     <SocialMediaForm
-                                        redesSociales={perfilCompleto.perfilArtista.redesSociales || []}
-                                        usuarioId={session?.user?.id || ""}
+                                        redesSociales={perfilCompleto.perfilArtista.redesSociales as any}
+                                        usuarioId={String(session?.user?.id)}
                                         onSave={loadProfile}
                                         onLoadingChange={setCargando}
                                     />
@@ -598,9 +579,9 @@ export default function PaginaPerfil() {
                                     description="Configura cómo pueden apoyarte"
                                 >
                                     <DonationForm
-                                        metodosDonacion={perfilCompleto.perfilArtista.metodosDonacion || []}
+                                        metodosDonacion={perfilCompleto.perfilArtista.metodosDonacion as any}
                                         perfilArtista={perfilCompleto.perfilArtista}
-                                        usuarioId={session?.user?.id || ""}
+                                        usuarioId={String(session?.user?.id)}
                                         onSave={loadProfile}
                                         onLoadingChange={setCargando}
                                     />

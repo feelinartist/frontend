@@ -355,5 +355,128 @@ describe("MusicRequestPage (Server Component)", () => {
 
         expect(screen.getByTestId("music-form")).toBeInTheDocument();
     });
-});
 
+    it("uses nombreUsuario as fallback when nombreArtistico and nombre are not available", async () => {
+        const mockUser = {
+            id: "user-1",
+            nombreUsuario: "johndoe",
+            perfilArtista: {
+                id: "artist-1",
+                pedidosActivos: false,
+            },
+        };
+
+        (global.fetch as any).mockImplementation((url: string) => {
+            if (url.includes("perfil-publico")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => mockUser,
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        const paramsPromise = Promise.resolve({ username: "johndoe" });
+        const result = await MusicRequestPage({ params: paramsPromise });
+        render(result);
+
+        expect(screen.getByText("johndoe")).toBeInTheDocument();
+        // Initial letter "J"
+        expect(screen.getByText("J")).toBeInTheDocument();
+    });
+
+    it("renders fallback 'el artista' when user nombre is missing in active event", async () => {
+        const mockUser = {
+            id: "user-1",
+            nombreUsuario: "johnartist",
+            perfilArtista: {
+                id: "artist-1",
+                nombreArtistico: "John Live",
+                pedidosActivos: true,
+            },
+        };
+
+        const mockEvent = {
+            id: "event-1",
+            titulo: "Awesome Live Concert",
+        };
+
+        (global.fetch as any).mockImplementation((url: string) => {
+            if (url.includes("perfil-publico")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => mockUser,
+                });
+            }
+            if (url.includes("activo")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => mockEvent,
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        const paramsPromise = Promise.resolve({ username: "johnartist" });
+        const result = await MusicRequestPage({ params: paramsPromise });
+        render(result);
+
+        expect(screen.getByText("John Live")).toBeInTheDocument();
+    });
+
+    it("uses user.nombre as alt text fallback when nombreArtistico is null and user has imagen", async () => {
+        const mockUser = {
+            id: "user-1",
+            nombre: "Maria Garcia",
+            imagen: "/avatar.png",
+            perfilArtista: {
+                id: "artist-1",
+                pedidosActivos: false,
+            },
+        };
+
+        (global.fetch as any).mockImplementation((url: string) => {
+            if (url.includes("perfil-publico")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => mockUser,
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        const paramsPromise = Promise.resolve({ username: "mariagarcia" });
+        const result = await MusicRequestPage({ params: paramsPromise });
+        render(result);
+
+        // The image alt should fall back to user.nombre when nombreArtistico is null
+        const img = screen.getByAltText("Maria Garcia");
+        expect(img).toBeInTheDocument();
+    });
+
+    it("renders '?' initials when all names are missing", async () => {
+        const mockUser = {
+            id: "user-1",
+            perfilArtista: {
+                id: "artist-1",
+                pedidosActivos: false,
+            },
+        };
+
+        (global.fetch as any).mockImplementation((url: string) => {
+            if (url.includes("perfil-publico")) {
+                return Promise.resolve({
+                    ok: true,
+                    json: async () => mockUser,
+                });
+            }
+            return Promise.resolve({ ok: false });
+        });
+
+        const paramsPromise = Promise.resolve({ username: "unknown" });
+        const result = await MusicRequestPage({ params: paramsPromise });
+        render(result);
+
+        expect(screen.getByText("?")).toBeInTheDocument();
+    });
+});

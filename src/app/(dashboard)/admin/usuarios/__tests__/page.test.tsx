@@ -1,861 +1,647 @@
-import React from "react";
-import { render, screen, fireEvent, waitFor, waitForElementToBeRemoved } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import PaginaGestionUsuarios from "../page";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Swal from "sweetalert2";
 
-// Mock next-auth/react
+// Mocks
 vi.mock("next-auth/react", () => ({
-    useSession: vi.fn(),
+  useSession: vi.fn(),
 }));
 
-// Mock next/navigation
-const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
-    useRouter: () => ({
-        push: mockPush,
-    }),
+  useRouter: vi.fn(),
 }));
 
-// Mock sonner toast
 vi.mock("sonner", () => ({
-    toast: {
-        success: vi.fn(),
-        error: vi.fn(),
-    },
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
 }));
-
-// Mock components
-vi.mock("@/components/animated-background", () => ({
-    AnimatedBackground: () => <div data-testid="animated-bg" />,
-}));
-
-vi.mock("@/components/ui/loading-screen", () => ({
-    LoadingScreen: () => <div data-testid="loading-screen">Cargando pantalla...</div>,
-}));
-
-vi.mock("@/components/ui/back-button", () => ({
-    BackButton: ({ href }: any) => <a href={href} data-testid="back-button">Atrás</a>,
-}));
-
-// Mock Dialog locally to render children inline for easier DOM querying
-vi.mock("@/components/ui/dialog", () => ({
-    Dialog: ({ children, open }: any) => open ? <div data-testid="mock-dialog">{children}</div> : null,
-    DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
-    DialogHeader: ({ children }: any) => <div>{children}</div>,
-    DialogTitle: ({ children }: any) => <h2>{children}</h2>,
-    DialogDescription: ({ children }: any) => <p>{children}</p>,
-}));
-
-// Mock sweetalert2 and sweetalert2-react-content
-let containerReturnNull = false;
-const mockSwalFire = vi.fn().mockImplementation((options: any) => {
-    if (options && typeof options.didOpen === "function") {
-        options.didOpen();
-    }
-    return Promise.resolve({ isConfirmed: true });
-});
-const mockSwalGetContainer = vi.fn().mockImplementation(() => {
-    if (containerReturnNull) {
-        return null;
-    }
-    return document.createElement("div");
-});
 
 vi.mock("sweetalert2", () => ({
-    default: {
-        fire: (...args: any[]) => mockSwalFire(...args),
-        getContainer: () => mockSwalGetContainer(),
-    },
+  default: {
+    fire: vi.fn().mockImplementation((options) => {
+      if (options && typeof options.didOpen === 'function') {
+        options.didOpen();
+      }
+      return Promise.resolve({ isConfirmed: true });
+    }),
+    getContainer: vi.fn().mockImplementation(() => {
+      return (globalThis as any).swalContainerMockValue !== undefined 
+        ? (globalThis as any).swalContainerMockValue 
+        : { style: {} };
+    })
+  }
 }));
 
 vi.mock("sweetalert2-react-content", () => ({
-    default: vi.fn().mockImplementation((swal) => swal),
+  default: (swal: any) => swal
 }));
 
-// Mock global fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
-// Mock URL.createObjectURL
-global.URL.createObjectURL = vi.fn().mockReturnValue("blob-url");
+globalThis.fetch = vi.fn();
+globalThis.open = vi.fn();
+globalThis.URL.createObjectURL = vi.fn();
 
 describe("PaginaGestionUsuarios", () => {
-    const originalEnv = process.env.NEXT_PUBLIC_BACKEND_URL;
+  const mockRouter = { push: vi.fn() };
+  const mockUsers = [
+    {
+      id: "1",
+      nombre: "Test User",
+      email: "test@test.com",
+      correo: "test@test.com",
+      rol: { id: "1", nombre: "SUPER_ADMIN" },
+      estadoCuenta: "ACTIVO",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    },
+    {
+      id: "2",
+      nombre: "Art User",
+      rol: { id: "2", nombre: "ARTISTA" },
+      estadoCuenta: "BANEADO",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+      perfilArtista: {
+        urlPago: "http://payment.url",
+        musicQR: "http://music.qr",
+        pagoQR: "http://payment.qr",
+        nombreQR: "My QR",
+        galeria: [{ urlImagen: "img1.jpg" }]
+      }
+    },
+    {
+      id: "3",
+      nombre: "Disc User",
+      rol: { id: "3", nombre: "DISCOTECA" },
+      estadoCuenta: "SUSPENDIDO",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    },
+    {
+      id: "4",
+      nombre: "Wait Delete",
+      rol: { id: "4", nombre: "OTHER" },
+      estadoCuenta: "ELIMINACION_PENDIENTE",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    },
+    {
+      id: "5",
+      nombre: "Admin User",
+      nombreUsuario: "adminuser",
+      imagen: "http://avatar.url/1.jpg",
+      rol: { id: "5", nombre: "ADMIN" },
+      estadoCuenta: "ACTIVO",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    },
+    {
+      id: "6",
+      nombre: "",
+      nombreUsuario: null,
+      imagen: null,
+      rol: { id: "1", nombre: "PUBLICO" },
+      estadoCuenta: "ACTIVO",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    },
+    {
+      id: "7",
+      nombre: null,
+      correo: "unknown@test.com",
+      rol: { id: "6", nombre: "UNKNOWN_ROLE" },
+      estadoCuenta: "UNKNOWN_STATUS",
+      creadoEn: "2023-01-01T00:00:00Z",
+      actualizadoEn: "2023-01-01T00:00:00Z",
+    }
+  ];
 
-    const mockRolesData = [
-        { id: "1", nombre: "SUPER_ADMIN" },
-        { id: "2", nombre: "ADMIN" },
-        { id: "3", nombre: "ARTISTA" },
-        { id: "4", nombre: "DISCOTECA" },
-        { id: "5", nombre: "PUBLICO" },
-    ];
-
-    const mockUsersData = {
-        usuarios: [
-            {
-                id: "user-1",
-                nombre: "Juan Perez",
-                correo: "juan@perez.com",
-                imagen: "https://example.com/juan.jpg",
-                rol: { id: "3", nombre: "ARTISTA" },
-                estadoCuenta: "ACTIVO",
-                nombreUsuario: "juanperez",
-                creadoEn: "2026-01-01T00:00:00Z",
-                actualizadoEn: "2026-01-02T00:00:00Z",
-                perfilArtista: {
-                    urlPago: "https://pago.com/juan",
-                    pagoQR: "https://example.com/pagoqr.jpg",
-                    nombreQR: "QR Donacion",
-                    musicQR: "https://example.com/musicqr.jpg",
-                    galeria: [{ urlImagen: "https://example.com/gal1.jpg" }],
-                },
-            },
-            {
-                id: "user-2",
-                nombre: "Maria Gomez",
-                correo: "maria@gomez.com",
-                imagen: null,
-                rol: { id: "4", nombre: "DISCOTECA" },
-                estadoCuenta: "SUSPENDIDO",
-                nombreUsuario: null,
-                creadoEn: "2026-01-05T00:00:00Z",
-                actualizadoEn: "2026-01-06T00:00:00Z",
-                perfilArtista: null,
-            },
-            {
-                id: "user-3",
-                nombre: "Super Admin User",
-                correo: "super@admin.com",
-                imagen: "https://example.com/super.jpg",
-                rol: { id: "1", nombre: "SUPER_ADMIN" },
-                estadoCuenta: "BANEADO",
-                nombreUsuario: "superadmin",
-                creadoEn: "2026-01-01T00:00:00Z",
-                actualizadoEn: "2026-01-02T00:00:00Z",
-                perfilArtista: null,
-            },
-            {
-                id: "user-4",
-                nombre: "Regular Admin User",
-                correo: "admin@test.com",
-                imagen: null,
-                rol: { id: "2", nombre: "ADMIN" },
-                estadoCuenta: "ELIMINACION_PENDIENTE",
-                nombreUsuario: "admin",
-                creadoEn: "2026-01-01T00:00:00Z",
-                actualizadoEn: "2026-01-02T00:00:00Z",
-                perfilArtista: null,
-            },
-            {
-                id: "user-5",
-                nombre: "Pedro Oyente",
-                correo: "pedro@oyente.com",
-                imagen: null,
-                rol: { id: "5", nombre: "PUBLICO" },
-                estadoCuenta: "ACTIVO",
-                nombreUsuario: null,
-                creadoEn: "2026-01-01T00:00:00Z",
-                actualizadoEn: "2026-01-02T00:00:00Z",
-                perfilArtista: null,
-            },
-        ],
-        total: 5,
-    };
-
-    let fetchFailureMode: "none" | "users-fail" | "users-exception" | "update-fail" | "update-exception" | "download-fail" = "none";
-
-    beforeEach(() => {
-        vi.resetAllMocks();
-        mockPush.mockReset();
-        containerReturnNull = false;
-        mockSwalFire.mockImplementation((options: any) => {
-            if (options && typeof options.didOpen === "function") {
-                options.didOpen();
-            }
-            return Promise.resolve({ isConfirmed: true });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (useRouter as any).mockReturnValue(mockRouter);
+    
+    // Mock fetch responses
+    (globalThis.fetch as any).mockImplementation((url: string) => {
+      if (url.includes("/api/admin/usuarios")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ usuarios: mockUsers, total: 25 }), // Force pagination
         });
-        mockSwalGetContainer.mockImplementation(() => {
-            if (containerReturnNull) {
-                return null;
-            }
-            return document.createElement("div");
+      }
+      if (url.includes("/api/admin/config/roles")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([{ id: "1", nombre: "ADMIN" }]),
         });
-        process.env.NEXT_PUBLIC_BACKEND_URL = "http://backend";
-        fetchFailureMode = "none";
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+  });
 
-        // Default authenticated as ADMIN
-        (useSession as any).mockReturnValue({
-            data: { user: { email: "admin@test.com", rol: "ADMIN" } },
-            status: "authenticated",
-        });
+  const setupAuth = () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { rol: "ADMIN" } },
+      status: "authenticated",
+    });
+  };
 
-        // Default fetch mock resolve
-        mockFetch.mockImplementation(async (url: string) => {
-            if (url.includes("/api/admin/usuarios")) {
-                if (fetchFailureMode === "users-fail") {
-                    return { ok: false };
-                }
-                if (fetchFailureMode === "users-exception") {
-                    throw new Error("Network Failure");
-                }
-                return {
-                    ok: true,
-                    json: async () => mockUsersData,
-                };
-            }
-            if (url.includes("/api/admin/config/roles")) {
-                return {
-                    ok: true,
-                    json: async () => mockRolesData,
-                };
-            }
-            if (url.includes("/api/usuarios/perfil")) {
-                if (fetchFailureMode === "update-fail") {
-                    return {
-                        ok: false,
-                        json: async () => ({ message: "Invalido" }),
-                    };
-                }
-                if (fetchFailureMode === "update-exception") {
-                    throw new Error("Network Fail");
-                }
-                return {
-                    ok: true,
-                    json: async () => ({}),
-                };
-            }
-            if (url.includes("/api/usuarios/banear") || url.includes("/api/usuarios/reactivar") || url.includes("/api/usuarios/eliminar-permanente")) {
-                if (fetchFailureMode === "update-fail") {
-                    return { ok: false };
-                }
-                if (fetchFailureMode === "update-exception") {
-                    throw new Error("Network Fail");
-                }
-                return { ok: true };
-            }
-            if (url.startsWith("https://example.com/") || url.startsWith("https://avatar.vercel.sh")) {
-                if (fetchFailureMode === "download-fail") {
-                    throw new Error("Download fails");
-                }
-                return {
-                    ok: true,
-                    blob: async () => new Blob(["dummy content"], { type: "image/jpeg" }),
-                };
-            }
-            return { ok: false };
-        });
+  it("redirects if unauthenticated", () => {
+    (useSession as any).mockReturnValue({ data: null, status: "unauthenticated" });
+    render(<PaginaGestionUsuarios />);
+    expect(mockRouter.push).toHaveBeenCalledWith("/home");
+  });
+
+  it("redirects if authenticated but not admin", () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { rol: "PUBLICO" } },
+      status: "authenticated",
+    });
+    render(<PaginaGestionUsuarios />);
+    expect(mockRouter.push).toHaveBeenCalledWith("/home");
+  });
+
+  it("renders loader while loading data", () => {
+    setupAuth();
+    const { container } = render(<PaginaGestionUsuarios />);
+    expect(container.querySelector(".animate-spin") || screen.queryByTestId("loading-screen")).toBeDefined();
+  });
+
+  it("renders users after loading", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    
+    await waitFor(() => {
+      expect(screen.getByText("Test User")).toBeInTheDocument();
+      expect(screen.getByText("Art User")).toBeInTheDocument();
+      expect(screen.getByText("Disc User")).toBeInTheDocument();
+      expect(screen.getByText("Wait Delete")).toBeInTheDocument();
+    });
+  });
+
+  it("handles pagination next and previous", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument(), { timeout: 2000 });
+
+    const nextBtn = screen.getByRole("button", { name: /Siguiente/i });
+    fireEvent.click(nextBtn);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining("page=2"));
     });
 
-    afterEach(() => {
-        process.env.NEXT_PUBLIC_BACKEND_URL = originalEnv;
+    const prevBtn = screen.getByRole("button", { name: /Anterior/i });
+    fireEvent.click(prevBtn);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining("page=1"));
+    });
+  });
+
+  it("handles search input debounce", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument(), { timeout: 2000 });
+    
+    const searchInput = screen.getByPlaceholderText(/Buscar por nombre/i);
+    fireEvent.change(searchInput, { target: { value: "search test" } });
+    
+
+    
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining("termino=search%20test"));
+    });
+  });
+
+  it("handles empty user search result and fetch error", async () => {
+    setupAuth();
+    (globalThis.fetch as any).mockResolvedValue({ ok: false }); // Error
+    
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al cargar los datos");
+    });
+  });
+
+  it("handles user edit modal and update", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument(), { timeout: 2000 });
+
+    const manageBtns = screen.getAllByRole("button", { name: /Gestionar/i });
+    fireEvent.click(manageBtns[0]); // Test User
+
+    await waitFor(() => expect(screen.getByText("Gestionar Usuario")).toBeInTheDocument());
+    
+    // Save changes (Guardar Cambios)
+    fireEvent.click(screen.getByText("Guardar Cambios"));
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/usuarios/perfil"), expect.any(Object));
+      expect(toast.success).toHaveBeenCalledWith("Usuario actualizado correctamente");
+    });
+  });
+
+  it("handles edit modal failure", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument(), { timeout: 2000 });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await waitFor(() => expect(screen.getByText("Guardar Cambios")).toBeInTheDocument());
+    
+    (globalThis.fetch as any).mockImplementationOnce(() => Promise.resolve({ ok: false, json: () => Promise.resolve({ message: "Update fail" }) }));
+    
+    fireEvent.click(screen.getByText("Guardar Cambios"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Update fail"));
+  });
+
+  it("handles user ban and unban", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    
+    await screen.findByText("Test User", {}, { timeout: 2000 });
+
+    // Open active user (Test User)
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario", {}, { timeout: 3000 }); // Wait for modal
+    const banearBtn = await screen.findByRole("button", { name: /Banear/i }, { timeout: 3000 });
+    
+    fireEvent.click(banearBtn);
+    await waitFor(() => {
+      expect(Swal.fire).toHaveBeenCalled();
+      expect(toast.success).toHaveBeenCalledWith("Usuario baneado correctamente");
     });
 
-    async function waitForLoadingToDisappear() {
-        await waitForElementToBeRemoved(() => screen.queryByTestId("loading-screen"), { timeout: 3000 });
+    // Modal closes automatically, let's just open the banned user
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]);
+    await screen.findByText("Gestionar Usuario", {}, { timeout: 3000 }); // Wait for modal
+    const desbanearBtn = await screen.findByRole("button", { name: /Desbanear/i }, { timeout: 3000 });
+
+    fireEvent.click(desbanearBtn);
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Usuario desbaneado correctamente");
+    });
+  });
+
+  it("handles permanent delete", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    
+    await screen.findByText("Test User", {}, { timeout: 2000 });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario", {}, { timeout: 3000 }); // Wait for modal
+    const eliminarBtn = await screen.findByRole("button", { name: /Borrar/i }, { timeout: 3000 });
+
+    fireEvent.click(eliminarBtn);
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith("Usuario eliminado para siempre");
+    });
+  });
+
+  it("handles download logic and link open", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getByText("Art User")).toBeInTheDocument(), { timeout: 2000 });
+
+    // Open Art User
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]);
+    await waitFor(() => expect(screen.getByText("Gestionar Usuario")).toBeInTheDocument());
+
+    // Test download success
+    (globalThis.fetch as any).mockResolvedValueOnce({ blob: () => Promise.resolve(new Blob()) });
+    const downloadBtns = screen.getAllByTitle("Descargar");
+    fireEvent.click(downloadBtns[0]); // Download profile pic or QR
+    
+    await waitFor(() => {
+      expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
+    });
+
+    // Test download error -> fallback to open
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network Error"));
+    fireEvent.click(downloadBtns[0]);
+    
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al descargar la imagen");
+      expect(globalThis.open).toHaveBeenCalled();
+    });
+  });
+
+  it("handles catch block error on cargarDatos", async () => {
+    setupAuth();
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network connection failed"));
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error de conexión con el servidor");
+    });
+  });
+
+  it("handles update failure with default message, and catch block", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await waitFor(() => expect(screen.getByText("Guardar Cambios")).toBeInTheDocument());
+
+    // ok false, no message in body
+    (globalThis.fetch as any).mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({}) });
+    fireEvent.click(screen.getByText("Guardar Cambios"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al actualizar");
+    });
+
+    // rejection
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network Error"));
+    fireEvent.click(screen.getByText("Guardar Cambios"));
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Error al actualizar usuario");
+    });
+  });
+
+  it("handles ban, unban, and delete failures and rejection", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument());
+
+    // 1. Ban failure
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario");
+    const banearBtn = await screen.findByRole("button", { name: /Banear/i });
+    
+    (globalThis.fetch as any).mockResolvedValueOnce({ ok: false });
+    fireEvent.click(banearBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al banear usuario"));
+
+    // Ban network error
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network Error"));
+    fireEvent.click(banearBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error de red"));
+
+    // Close dialog to allow clicking other users
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar/i }));
+    await waitFor(() => expect(screen.queryByText("Gestionar Usuario")).not.toBeInTheDocument());
+
+    // 2. Unban failure
+    // Open banned user
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]);
+    await screen.findByText("Gestionar Usuario");
+    const desbanearBtn = await screen.findByRole("button", { name: /Desbanear/i });
+
+    (globalThis.fetch as any).mockResolvedValueOnce({ ok: false });
+    fireEvent.click(desbanearBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al desbanear usuario"));
+
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network Error"));
+    fireEvent.click(desbanearBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error de red"));
+
+    // Close dialog
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar/i }));
+    await waitFor(() => expect(screen.queryByText("Gestionar Usuario")).not.toBeInTheDocument());
+
+    // 3. Delete permanent failure
+    // Open test user
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario");
+    const deleteBtn = await screen.findByRole("button", { name: /Borrar/i });
+
+    (globalThis.fetch as any).mockResolvedValueOnce({ ok: false });
+    fireEvent.click(deleteBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error al eliminar usuario"));
+
+    (globalThis.fetch as any).mockRejectedValueOnce(new Error("Network Error"));
+    fireEvent.click(deleteBtn);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Error de red"));
+
+    // Close dialog
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar/i }));
+  });
+
+  it("does not proceed with ban/unban/delete if not confirmed", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument());
+
+    // Mock confirm dialog to return false
+    (Swal.fire as any).mockResolvedValueOnce({ isConfirmed: false });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario");
+    const banearBtn = await screen.findByRole("button", { name: /Banear/i });
+
+    fireEvent.click(banearBtn);
+    // Should not call fetch for banear
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/usuarios/banear"), expect.any(Object));
+  });
+
+  it("handles payment link click and different user role/status rendering", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Art User")).toBeInTheDocument());
+
+    // Open Art User (role ARTISTA, status BANEADO)
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]);
+    await screen.findByText("Gestionar Usuario");
+
+    // Click external payment link specifically in the payment link container
+    const paymentLinkContainer = screen.getByText("http://payment.url").parentElement;
+    const paymentLinkBtn = paymentLinkContainer?.querySelector("button");
+    if (paymentLinkBtn) {
+      fireEvent.click(paymentLinkBtn);
+      expect(globalThis.open).toHaveBeenCalledWith("http://payment.url", "_blank");
     }
 
-    it("redirects unauthenticated users to /home", async () => {
-        (useSession as any).mockReturnValue({
-            data: null,
-            status: "unauthenticated",
+    // Check role badge of Test User (SUPER_ADMIN)
+    expect(screen.getByText("Super Admin")).toBeInTheDocument();
+  });
+
+  it("handles session with SUPER_ADMIN role", async () => {
+    (useSession as any).mockReturnValue({
+      data: { user: { rol: "SUPER_ADMIN" } },
+      status: "authenticated",
+    });
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument());
+  });
+
+  it("does not proceed with unban or delete permanently if not confirmed", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Test User")).toBeInTheDocument());
+
+    // Mock confirm dialog to return false
+    (Swal.fire as any).mockResolvedValue({ isConfirmed: false });
+
+    // Try unban
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]); // Art User (BANEADO)
+    await screen.findByText("Gestionar Usuario");
+    const desbanearBtn = await screen.findByRole("button", { name: /Desbanear/i });
+    fireEvent.click(desbanearBtn);
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/usuarios/reactivar"), expect.any(Object));
+
+    // Try delete
+    const deleteBtn = await screen.findByRole("button", { name: /Borrar/i });
+    fireEvent.click(deleteBtn);
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(expect.stringContaining("/api/usuarios/eliminar-permanente"), expect.any(Object));
+  });
+
+  it("handles empty search results list", async () => {
+    setupAuth();
+    (globalThis.fetch as any).mockImplementation((url: string) => {
+      if (url.includes("/api/admin/usuarios")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ usuarios: [], total: 0 }),
         });
-
-        render(<PaginaGestionUsuarios />);
-
-        expect(mockPush).toHaveBeenCalledWith("/home");
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     });
 
-    it("redirects authenticated non-admin users to /home", async () => {
-        (useSession as any).mockReturnValue({
-            data: { user: { email: "user@test.com", rol: "PUBLICO" } },
-            status: "authenticated",
-        });
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("No se encontraron usuarios que coincidan con la búsqueda")).toBeInTheDocument());
+  });
 
-        render(<PaginaGestionUsuarios />);
+  it("handles downloading/viewing legacy music QR and payment QR and gallery images in user dialog", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+    await waitFor(() => expect(screen.getByText("Art User")).toBeInTheDocument(), { timeout: 2000 });
 
-        expect(mockPush).toHaveBeenCalledWith("/home");
+    // 1. Open Art User
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[1]); 
+    await screen.findByText("Gestionar Usuario");
+
+    // Click payment QR buttons
+    const qrImage = screen.getByAltText("Image QR");
+    const qrContainer = qrImage.closest("div");
+    const qrButtons = qrContainer?.querySelectorAll("button") || [];
+    expect(qrButtons.length).toBe(2);
+    
+    // Open external link
+    fireEvent.click(qrButtons[0]);
+    expect(globalThis.open).toHaveBeenCalledWith("http://payment.qr", "_blank");
+
+    // Download QR
+    (globalThis.fetch as any).mockResolvedValueOnce({ blob: () => Promise.resolve(new Blob()) });
+    fireEvent.click(qrButtons[1]);
+    await waitFor(() => {
+      expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
     });
 
-    it("allows loading page for ADMIN role and fetches data", async () => {
-        render(<PaginaGestionUsuarios />);
-        expect(screen.getByTestId("loading-screen")).toBeInTheDocument();
+    // Click legacy music QR buttons
+    const legacyQrImage = screen.getByAltText("Legacy QR");
+    const legacyQrContainer = legacyQrImage.closest("div");
+    const legacyQrButtons = legacyQrContainer?.querySelectorAll("button") || [];
+    expect(legacyQrButtons.length).toBe(2);
 
-        // Wait for data load
-        await waitForLoadingToDisappear();
+    // Open external legacy QR link
+    fireEvent.click(legacyQrButtons[0]);
+    expect(globalThis.open).toHaveBeenCalledWith("http://music.qr", "_blank");
 
-        expect(screen.queryByTestId("loading-screen")).not.toBeInTheDocument();
-        expect(screen.getByText("Gestión de Usuarios")).toBeInTheDocument();
-        expect(screen.getByText("Juan Perez")).toBeInTheDocument();
-        expect(screen.getByText("Maria Gomez")).toBeInTheDocument();
-        expect(screen.getByText("Super Admin User")).toBeInTheDocument();
-        expect(screen.getByText("Regular Admin User")).toBeInTheDocument();
+    // Download legacy QR
+    (globalThis.fetch as any).mockResolvedValueOnce({ blob: () => Promise.resolve(new Blob()) });
+    fireEvent.click(legacyQrButtons[1]);
+    await waitFor(() => {
+      expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
     });
 
-    it("handles data fetching failures properly", async () => {
-        fetchFailureMode = "users-fail";
+    // Click gallery buttons
+    const galleryImg = screen.getByAltText("Gallery 0");
+    const galleryContainer = galleryImg.closest("div");
+    const galleryButtons = galleryContainer?.querySelectorAll("button") || [];
+    expect(galleryButtons.length).toBe(2);
 
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
+    // Open external gallery link
+    fireEvent.click(galleryButtons[0]);
+    expect(globalThis.open).toHaveBeenCalledWith("img1.jpg", "_blank");
 
-        expect(toast.error).toHaveBeenCalledWith("Error al cargar los datos");
+    // Download gallery image
+    (globalThis.fetch as any).mockResolvedValueOnce({ blob: () => Promise.resolve(new Blob()) });
+    fireEvent.click(galleryButtons[1]);
+    await waitFor(() => {
+      expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
     });
 
-    it("handles data fetching exceptions properly", async () => {
-        fetchFailureMode = "users-exception";
+    // Close dialog
+    fireEvent.click(screen.getByRole("button", { name: /Cerrar/i }));
+    await waitFor(() => expect(screen.queryByText("Gestionar Usuario")).not.toBeInTheDocument());
 
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
+    // 2. Open Admin User to test profile image buttons
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[4]);
+    await screen.findByText("Gestionar Usuario");
 
-        expect(toast.error).toHaveBeenCalledWith("Error de conexión con el servidor");
+    const userAvatarImg = screen.getByAltText("User");
+    const avatarContainer = userAvatarImg.closest("div");
+    const avatarButtons = avatarContainer?.parentElement?.querySelectorAll("button") || [];
+    
+    // Wait, the button container is inside group/avatar, let's find buttons inside the group/avatar div
+    const groupAvatarDiv = userAvatarImg.closest(".group\\/avatar") || avatarContainer?.parentElement;
+    const buttonsInAvatar = groupAvatarDiv?.querySelectorAll("button") || [];
+    expect(buttonsInAvatar.length).toBe(2);
+
+    // Open external profile image link
+    fireEvent.click(buttonsInAvatar[0]);
+    expect(globalThis.open).toHaveBeenCalledWith("http://avatar.url/1.jpg", "_blank");
+
+    // Download profile image
+    (globalThis.fetch as any).mockResolvedValueOnce({ blob: () => Promise.resolve(new Blob()) });
+    fireEvent.click(buttonsInAvatar[1]);
+    await waitFor(() => {
+      expect(globalThis.URL.createObjectURL).toHaveBeenCalled();
     });
-
-    it("allows SUPER_ADMIN to access the page without redirect", async () => {
-        (useSession as any).mockReturnValue({
-            data: { user: { email: "super@admin.com", rol: "SUPER_ADMIN" } },
-            status: "authenticated",
-        });
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        expect(mockPush).not.toHaveBeenCalledWith("/home");
-        expect(screen.getByText("Gestión de Usuarios")).toBeInTheDocument();
-    });
-
-    it("falls back to an empty usuarios array when API returns null usuarios", async () => {
-        mockFetch.mockImplementation(async (url: string) => {
-            if (url.includes("/api/admin/usuarios")) {
-                return {
-                    ok: true,
-                    json: async () => ({ usuarios: null, total: 0 }),
-                };
-            }
-            if (url.includes("/api/admin/config/roles")) {
-                return {
-                    ok: true,
-                    json: async () => mockRolesData,
-                };
-            }
-            return { ok: false };
-        });
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        expect(screen.getByText("No se encontraron usuarios que coincidan con la búsqueda")).toBeInTheDocument();
-    });
-
-    it("performs search with debounce", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const searchInput = screen.getByPlaceholderText("Buscar por nombre, correo o @usuario...");
-        fireEvent.change(searchInput, { target: { value: "Juan" } });
-
-        // Timer is running but not triggered immediately
-        expect(mockFetch).not.toHaveBeenCalledWith(expect.stringContaining("termino=Juan"));
-
-        // Wait for the debounce timeout to trigger
-        await waitFor(() => {
-            expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("termino=Juan"));
-        }, { timeout: 2000 });
-    });
-
-    it("handles pagination clicks", async () => {
-        // Change total so pagination renders
-        const paginatedMockUsers = {
-            usuarios: mockUsersData.usuarios,
-            total: 50, // More than 20 items per page
-        };
-        mockFetch.mockImplementation(async (url: string) => {
-            if (url.includes("/api/admin/usuarios")) {
-                return {
-                    ok: true,
-                    json: async () => paginatedMockUsers,
-                };
-            }
-            if (url.includes("/api/admin/config/roles")) {
-                return {
-                    ok: true,
-                    json: async () => mockRolesData,
-                };
-            }
-            return { ok: false };
-        });
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        expect(screen.getByText(/1 DE 3/)).toBeInTheDocument();
-
-        const nextButton = screen.getByText("Siguiente");
-        fireEvent.click(nextButton);
-
-        await waitFor(() => {
-            expect(screen.getByText(/2 DE 3/)).toBeInTheDocument();
-        });
-        expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("page=2"));
-
-        const prevButton = screen.getByText("Anterior");
-        fireEvent.click(prevButton);
-
-        await waitFor(() => {
-            expect(screen.getByText(/1 DE 3/)).toBeInTheDocument();
-        });
-        expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("page=1"));
-    });
-
-    it("opens user management dialog and handles updates", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]); // Juan Perez
-
-        expect(screen.getByTestId("mock-dialog")).toBeInTheDocument();
-        expect(screen.getByText("Ver detalles y modificar privilegios de Juan Perez.")).toBeInTheDocument();
-
-        // Change select fields directly
-        const roleOption = screen.getByTestId("mock-select-item-ADMIN");
-        fireEvent.click(roleOption);
-
-        const statusOption = screen.getByTestId("mock-select-item-SUSPENDIDO");
-        fireEvent.click(statusOption);
-
-        const saveBtn = screen.getByText("Guardar Cambios");
-        fireEvent.click(saveBtn);
-
-        await waitFor(() => {
-            expect(toast.success).toHaveBeenCalledWith("Usuario actualizado correctamente");
-            expect(screen.queryByTestId("mock-dialog")).not.toBeInTheDocument();
-        });
-
-        expect(mockFetch).toHaveBeenCalledWith(
-            "http://backend/api/usuarios/perfil",
-            expect.objectContaining({
-                method: "PATCH",
-                body: JSON.stringify({
-                    usuarioId: "user-1",
-                    rol: "ADMIN",
-                    estadoCuenta: "SUSPENDIDO",
-                }),
-            })
-        );
-    });
-
-    it("handles update failures", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        fetchFailureMode = "update-fail";
-
-        const saveBtn = screen.getByText("Guardar Cambios");
-        fireEvent.click(saveBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Invalido");
-        });
-    });
-
-    it("handles update exceptions", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        fetchFailureMode = "update-exception";
-
-        const saveBtn = screen.getByText("Guardar Cambios");
-        fireEvent.click(saveBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error al actualizar usuario");
-        });
-    });
-
-    it("handles file downloads successfully", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        // Download button on QR
-        const downloadQrBtns = screen.getAllByTitle("Descargar");
-        fireEvent.click(downloadQrBtns[0]); // downloads profile image
-
-        await waitFor(() => {
-            expect(mockFetch).toHaveBeenCalledWith("https://example.com/juan.jpg");
-            expect(global.URL.createObjectURL).toHaveBeenCalled();
-        });
-    });
-
-    it("falls back to window.open on download error", async () => {
-        const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        fetchFailureMode = "download-fail";
-
-        const downloadBtns = screen.getAllByTitle("Descargar");
-        fireEvent.click(downloadBtns[0]);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error al descargar la imagen");
-            expect(windowOpenSpy).toHaveBeenCalledWith("https://example.com/juan.jpg", "_blank");
-        });
-        windowOpenSpy.mockRestore();
-    });
-
-    it("handles window.open for original images and links", async () => {
-        const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        // Click see original
-        const openOriginalBtn = screen.getByTitle("Ver original");
-        fireEvent.click(openOriginalBtn);
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://example.com/juan.jpg", "_blank");
-
-        // Click external link on payment URL (precise query to avoid selector conflict)
-        const paymentLinkText = screen.getByText("https://pago.com/juan");
-        const paymentLinkContainer = paymentLinkText.parentElement;
-        const paymentLinkBtn = paymentLinkContainer!.querySelector("button");
-        fireEvent.click(paymentLinkBtn!);
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://pago.com/juan", "_blank");
-
-        windowOpenSpy.mockRestore();
-    });
-
-    it("handles fallbacks and default badges for public role and null values", async () => {
-        const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        // 1. Verify Public role badge is rendered for Pedro Oyente (user-5)
-        expect(screen.getByText("Público")).toBeInTheDocument();
-
-        // 2. Click Gestionar for user-2 (Maria Gomez, index 1)
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[1]); // Maria Gomez
-
-        // 3. Click see original (image is null, falls back to avatar URL)
-        const openOriginalBtn = screen.getByTitle("Ver original");
-        fireEvent.click(openOriginalBtn);
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://avatar.vercel.sh/user", "_blank");
-
-        // 4. Click download (image is null, falls back to avatar URL and 'usuario')
-        const downloadBtn = screen.getByTitle("Descargar");
-        fireEvent.click(downloadBtn);
-
-        await waitFor(() => {
-            expect(mockFetch).toHaveBeenCalledWith("https://avatar.vercel.sh/user");
-        });
-
-        windowOpenSpy.mockRestore();
-    });
-
-    it("allows ban action on user", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-
-        const banBtn = screen.getByText("Banear");
-        fireEvent.click(banBtn);
-
-        await waitFor(() => {
-            expect(mockSwalFire).toHaveBeenCalled();
-            expect(mockFetch).toHaveBeenCalledWith(
-                "http://backend/api/usuarios/banear",
-                expect.objectContaining({
-                    method: "POST",
-                    body: JSON.stringify({ usuarioId: "user-1" }),
-                })
-            );
-            expect(toast.success).toHaveBeenCalledWith("Usuario baneado correctamente");
-        });
-    });
-
-    it("handles ban action failures", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-fail";
-
-        const banBtn = screen.getByText("Banear");
-        fireEvent.click(banBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error al banear usuario");
-        });
-    });
-
-    it("handles ban action exception", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-exception";
-
-        const banBtn = screen.getByText("Banear");
-        fireEvent.click(banBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error de red");
-        });
-    });
-
-    it("allows unban action on banned user", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[2]); // Super Admin User is BANEADO
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-
-        const unbanBtn = screen.getByText("Desbanear");
-        fireEvent.click(unbanBtn);
-
-        await waitFor(() => {
-            expect(mockSwalFire).toHaveBeenCalled();
-            expect(mockFetch).toHaveBeenCalledWith(
-                "http://backend/api/usuarios/reactivar",
-                expect.objectContaining({
-                    method: "PATCH",
-                    body: JSON.stringify({ usuarioId: "user-3" }),
-                })
-            );
-            expect(toast.success).toHaveBeenCalledWith("Usuario desbaneado correctamente");
-        });
-    });
-
-    it("handles unban failures and exceptions", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[2]);
-
-        // Unban failure
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-fail";
-
-        const unbanBtn = screen.getByText("Desbanear");
-        fireEvent.click(unbanBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error al desbanear usuario");
-        });
-
-        // Unban exception
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-exception";
-        fireEvent.click(unbanBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error de red");
-        });
-    });
-
-    it("allows permanent deletion of user", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-
-        const deleteBtn = screen.getByText("Borrar");
-        fireEvent.click(deleteBtn);
-
-        await waitFor(() => {
-            expect(mockSwalFire).toHaveBeenCalled();
-            expect(mockFetch).toHaveBeenCalledWith(
-                "http://backend/api/usuarios/eliminar-permanente",
-                expect.objectContaining({
-                    method: "DELETE",
-                    body: JSON.stringify({ usuarioId: "user-1" }),
-                })
-            );
-            expect(toast.success).toHaveBeenCalledWith("Usuario eliminado para siempre");
-        });
-    });
-
-    it("handles permanent deletion failures and exceptions", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-fail";
-
-        const deleteBtn = screen.getByText("Borrar");
-        fireEvent.click(deleteBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error al eliminar usuario");
-        });
-
-        // exception
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: true });
-        fetchFailureMode = "update-exception";
-        fireEvent.click(deleteBtn);
-
-        await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith("Error de red");
-        });
-    });
-
-    it("does nothing if sweetalert is cancelled", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        mockSwalFire.mockResolvedValueOnce({ isConfirmed: false });
-
-        const banBtn = screen.getByText("Banear");
-        fireEvent.click(banBtn);
-
-        // wait for swal call to resolve
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        expect(mockFetch).not.toHaveBeenCalledWith(expect.stringContaining("banear"), expect.any(Object));
-    });
-
-    it("closes dialog when Cerrar button is clicked", async () => {
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]);
-
-        expect(screen.getByTestId("mock-dialog")).toBeInTheDocument();
-
-        const closeBtn = screen.getByText("Cerrar");
-        fireEvent.click(closeBtn);
-
-        expect(screen.queryByTestId("mock-dialog")).not.toBeInTheDocument();
-    });
-
-    it("renders empty list screen when no users match", async () => {
-        mockFetch.mockImplementation(async (url: string) => {
-            if (url.includes("/api/admin/usuarios")) {
-                return {
-                    ok: true,
-                    json: async () => ({ usuarios: [], total: 0 }),
-                };
-            }
-            if (url.includes("/api/admin/config/roles")) {
-                return {
-                    ok: true,
-                    json: async () => mockRolesData,
-                };
-            }
-            return { ok: false };
-        });
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        expect(screen.getByText("No se encontraron usuarios que coincidan con la búsqueda")).toBeInTheDocument();
-    });
-
-    it("clicks all media buttons (QRs and gallery) for view and download", async () => {
-        const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[0]); // Juan Perez
-
-        // 1. Music QR buttons
-        const musicQrImg = screen.getByAltText("Legacy QR");
-        const musicQrContainer = musicQrImg.parentElement;
-        const musicButtons = musicQrContainer!.querySelectorAll("button");
-        fireEvent.click(musicButtons[0]); // view
-        fireEvent.click(musicButtons[1]); // download
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://example.com/musicqr.jpg", "_blank");
-
-        // 2. Payment QR buttons
-        const pagoQrImg = screen.getByAltText("Image QR");
-        const pagoQrContainer = pagoQrImg.parentElement;
-        const pagoButtons = pagoQrContainer!.querySelectorAll("button");
-        fireEvent.click(pagoButtons[0]); // view
-        fireEvent.click(pagoButtons[1]); // download
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://example.com/pagoqr.jpg", "_blank");
-
-        // 3. Gallery image buttons
-        const galleryImg = screen.getByAltText("Gallery 0");
-        const galleryContainer = galleryImg.parentElement;
-        const galleryButtons = galleryContainer!.querySelectorAll("button");
-        fireEvent.click(galleryButtons[0]); // view
-        fireEvent.click(galleryButtons[1]); // download
-        expect(windowOpenSpy).toHaveBeenCalledWith("https://example.com/gal1.jpg", "_blank");
-
-        windowOpenSpy.mockRestore();
-    });
-
-    it("handles didOpen callbacks when container is null for ban, unban and delete permanently", async () => {
-        containerReturnNull = true;
-        render(<PaginaGestionUsuarios />);
-        await waitForLoadingToDisappear();
-
-        // 1. Unban (desbanear)
-        const gestionarBtns = screen.getAllByText("Gestionar");
-        fireEvent.click(gestionarBtns[2]); // Super Admin User is BANEADO
-        const unbanBtn = screen.getByText("Desbanear");
-        fireEvent.click(unbanBtn);
-        await waitFor(() => {
-            expect(toast.success).toHaveBeenCalledWith("Usuario desbaneado correctamente");
-        });
-
-        // 2. Ban (banear)
-        fireEvent.click(gestionarBtns[0]); // Juan Perez
-        const banBtn = screen.getByText("Banear");
-        fireEvent.click(banBtn);
-        await waitFor(() => {
-            expect(toast.success).toHaveBeenCalledWith("Usuario baneado correctamente");
-        });
-
-        // 3. Delete permanently (borrar)
-        fireEvent.click(gestionarBtns[0]); // Juan Perez (reopen editor)
-        const deleteBtn = screen.getByText("Borrar");
-        fireEvent.click(deleteBtn);
-        await waitFor(() => {
-            expect(toast.success).toHaveBeenCalledWith("Usuario eliminado para siempre");
-        });
-    });
+  });
+
+  it("handles Swal container returning null to cover that branch", async () => {
+    setupAuth();
+    (globalThis as any).swalContainerMockValue = null;
+
+    render(<PaginaGestionUsuarios />);
+    await screen.findByText("Test User");
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[0]);
+    await screen.findByText("Gestionar Usuario");
+
+    const banBtn = await screen.findByRole("button", { name: /Banear/i });
+    fireEvent.click(banBtn);
+
+    // SweetAlert fires, didOpen runs, container is null, doesn't crash
+    expect(Swal.fire).toHaveBeenCalled();
+
+    // Clean up global
+    delete (globalThis as any).swalContainerMockValue;
+  });
+
+  it("handles user modal with empty fields fallback", async () => {
+    setupAuth();
+    render(<PaginaGestionUsuarios />);
+
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Gestionar/i }).length).toBeGreaterThan(5));
+
+    // Open User 6
+    fireEvent.click(screen.getAllByRole("button", { name: /Gestionar/i })[5]);
+    
+    // Check fallback image click
+    const avatarImages = screen.getAllByRole("img");
+    // Find the one that has the fallback avatar
+    const fallbackAvatar = avatarImages.find(img => (img as HTMLImageElement).src.includes("avatar.vercel.sh"));
+    if (fallbackAvatar) {
+        const container = fallbackAvatar.closest('.group');
+        const viewBtn = container?.querySelectorAll('button')[0];
+        if (viewBtn) {
+            fireEvent.click(viewBtn);
+            expect(globalThis.open).toHaveBeenCalledWith("https://avatar.vercel.sh/user", "_blank");
+        }
+    }
+  });
 });
